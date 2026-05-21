@@ -1,0 +1,4 @@
+Current request: {request_id}
+
+Current frame batch:
+{frames}

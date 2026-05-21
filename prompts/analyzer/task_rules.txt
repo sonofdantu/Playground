@@ -1,0 +1,1 @@
+Return one concise operational paragraph. Mention visible objects, setting, track continuity, and notable actions. Use track IDs when they help connect metadata to visible evidence. If metadata is uncertain or incomplete, say so plainly.

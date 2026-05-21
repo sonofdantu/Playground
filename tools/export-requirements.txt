@@ -1,0 +1,18 @@
+# Python dependencies for the ONNX Runtime GenAI source model builder.
+#
+# The ORT GenAI 0.13.x Python wheel is not currently published on PyPI for this
+# environment, so tools/export_model.ps1 runs the builder from the matching
+# GitHub source tag instead of importing onnxruntime_genai from a wheel.
+accelerate
+huggingface_hub
+numpy
+onnx
+onnx-ir
+onnxruntime>=1.23
+pillow
+protobuf
+safetensors
+sentencepiece
+torch
+tqdm
+transformers>=5.0,<6.0
