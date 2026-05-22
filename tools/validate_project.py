@@ -22,6 +22,7 @@ REQUIRED_FILES = [
     "docs/ARCHITECTURE.md",
     "docs/ANALYZER.md",
     "docs/BENCHMARKING.md",
+    "docs/QUICKSTART.md",
     "docs/EDGE_ROADMAP.md",
     "docs/MODEL_EXPORT.md",
     "docs/MODEL_READINESS.md",
