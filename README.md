@@ -26,6 +26,7 @@ The codebase currently contains:
 For a fresh clone, start with [docs\QUICKSTART.md](docs/QUICKSTART.md).
 For the generated runtime assets that are intentionally not committed, read [docs\RUNTIME_ASSETS.md](docs/RUNTIME_ASSETS.md).
 Read [PROJECT_STATE.md](PROJECT_STATE.md) first after any context reset.
+For agent-oriented Linux reproduction, read [AGENTS.md](AGENTS.md) and [docs/LINUX_REPRODUCTION.md](docs/LINUX_REPRODUCTION.md).
 For model readiness and edge-performance direction, read [docs\MODEL_READINESS.md](docs/MODEL_READINESS.md) and [docs\EDGE_ROADMAP.md](docs/EDGE_ROADMAP.md).
 For the analyzer surface, read [docs\ANALYZER.md](docs/ANALYZER.md).
 
@@ -47,12 +48,13 @@ scene_describer --config configs/mock.local.ini --image tmp/smoke.ppm
 Linux quick path:
 
 ```bash
+./tools/setup_linux_env.sh
 ./tools/fetch_runtime_deps.sh
-./tools/setup_export_env.sh
 ./.venv/bin/python tools/prepare_qwen35_onnxopt_genai.py --output-dir models/qwen3.5-2b-onnxopt-q4f16 --variant q4f16
 ./tools/build.sh --test --ort-genai
 ./.venv/bin/python tools/make_test_image.py
-LD_LIBRARY_PATH="$PWD/build:${LD_LIBRARY_PATH:-}" ./build/scene_describer --config configs/qwen3.5-2b-onnxopt.ini --image tmp/smoke.png --max-new-tokens 32 --json
+./build/scene_describer --config configs/qwen3.5-2b-onnxopt.ini --image tmp/smoke.png --max-new-tokens 32 --json
+./tools/smoke_ort_genai.sh
 ```
 
 See [docs\QUICKSTART.md](docs/QUICKSTART.md) for full Windows and Linux startup paths.
@@ -79,7 +81,7 @@ cmake --build build --config Release
 ctest --test-dir build --output-on-failure
 ```
 
-This machine currently does not have `cmake` or a C++ compiler on PATH. See [docs/BUILDING.md](docs/BUILDING.md).
+On Linux, `tools/setup_linux_env.sh` installs local CMake/Ninja and the lightweight Python packages needed for Qwen3.5 ONNX-OPT preparation. See [docs/BUILDING.md](docs/BUILDING.md).
 
 ## Model Export
 
@@ -108,6 +110,12 @@ Or run the optional local smoke gate:
 
 ```powershell
 .\tools\smoke_ort_genai.ps1
+```
+
+Linux:
+
+```bash
+./tools/smoke_ort_genai.sh
 ```
 
 Benchmark the CLI-inclusive CPU path:

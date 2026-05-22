@@ -19,10 +19,11 @@ Linux equivalents:
 
 | Asset | Local Path | Created By | Committed? | Purpose |
 | --- | --- | --- | --- | --- |
+| Linux Python/build environment | `.venv` | `tools/setup_linux_env.sh` | no | Provides local CMake, Ninja, and lightweight Qwen3.5 preparation packages. |
 | ONNX Runtime GenAI SDK | `.deps/onnxruntime-genai-0.13.1-linux-x64/onnxruntime-genai-0.13.1-linux-x64` | `tools/fetch_runtime_deps.sh` | no | Provides `include/ort_genai.h`, `lib/libonnxruntime-genai.so`, and headers. |
 | ONNX Runtime SDK | `.deps/onnxruntime-linux-x64-1.25.1/onnxruntime-linux-x64-1.25.1` | `tools/fetch_runtime_deps.sh` | no | Provides matching `lib/libonnxruntime.so`. |
 | ORT-enabled C++ build | `build/scene_describer`, `build/scene_analyzer`, `build/scene_model_probe` | `tools/build.sh --ort-genai` | no | Linux executables linked against ONNX Runtime GenAI. |
-| App-local runtime shared libraries | `build/libonnxruntime-genai.so`, `build/libonnxruntime.so` | `tools/build.sh --ort-genai` | no | Lets `LD_LIBRARY_PATH=$PWD/build` resolve the matching runtime libraries. |
+| App-local runtime shared libraries | `build/libonnxruntime-genai.so`, `build/libonnxruntime.so` | `tools/build.sh --ort-genai` | no | Lets the executable rpath or `LD_LIBRARY_PATH=$PWD/build` resolve matching runtime libraries. |
 
 ## ORT GenAI Dependency Path
 
@@ -31,6 +32,7 @@ Run:
 Linux:
 
 ```bash
+./tools/setup_linux_env.sh
 ./tools/fetch_runtime_deps.sh
 ```
 
@@ -241,7 +243,7 @@ Probe GenAI stage by stage:
 Linux:
 
 ```bash
-LD_LIBRARY_PATH="$PWD/build:${LD_LIBRARY_PATH:-}" ./build/scene_model_probe \
+./build/scene_model_probe \
   --model-dir models/qwen3.5-2b-onnxopt-q4f16 \
   --image tmp/smoke.png \
   --stage generate \
@@ -263,11 +265,17 @@ Run the normal CLI:
 Linux:
 
 ```bash
-LD_LIBRARY_PATH="$PWD/build:${LD_LIBRARY_PATH:-}" ./build/scene_describer \
+./build/scene_describer \
   --config configs/qwen3.5-2b-onnxopt.ini \
   --image tmp/smoke.png \
   --max-new-tokens 32 \
   --json
+```
+
+Linux smoke gate:
+
+```bash
+./tools/smoke_ort_genai.sh
 ```
 
 Windows:

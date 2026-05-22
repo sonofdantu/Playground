@@ -14,22 +14,21 @@ For a human or AI agent starting cold:
 
 ## Prerequisites
 
-- Windows PowerShell.
-- Python 3.10 or newer available as `python`.
-- Visual Studio 2022 Build Tools with MSVC, CMake, and Ninja installed.
+- Linux x64: Python 3 and a C++20 compiler such as `g++` or `clang++`. `tools/setup_linux_env.sh` installs local CMake/Ninja under `.venv` when they are not on PATH.
+- Windows: PowerShell, Python 3.10 or newer available as `python`, and Visual Studio 2022 Build Tools with MSVC, CMake, and Ninja installed.
 - Network access to GitHub and Hugging Face for dependencies and model artifacts.
 - Enough disk space for generated artifacts. A lean Qwen3.5 setup is roughly 2.5 GB; full local caches can exceed 10 GB.
 
 ## Linux Copy/Paste Setup
 
-Use this path on a Linux x64 machine with Python 3, CMake, and a C++20 compiler installed:
+Use this path on a Linux x64 machine with Python 3 and a C++20 compiler installed:
 
 ```bash
 git clone https://github.com/sonofdantu/Playground.git
 cd Playground
 
+./tools/setup_linux_env.sh
 ./tools/fetch_runtime_deps.sh
-./tools/setup_export_env.sh
 
 ./.venv/bin/python tools/prepare_qwen35_onnxopt_genai.py \
   --output-dir models/qwen3.5-2b-onnxopt-q4f16 \
@@ -39,11 +38,13 @@ cd Playground
 
 ./.venv/bin/python tools/make_test_image.py
 
-LD_LIBRARY_PATH="$PWD/build:${LD_LIBRARY_PATH:-}" ./build/scene_describer \
+./build/scene_describer \
   --config configs/qwen3.5-2b-onnxopt.ini \
   --image tmp/smoke.png \
   --max-new-tokens 32 \
   --json
+
+./tools/smoke_ort_genai.sh
 ```
 
 If your checkout loses executable bits, run:
@@ -147,6 +148,16 @@ LD_LIBRARY_PATH="$PWD/build:${LD_LIBRARY_PATH:-}" ./build/scene_analyzer \
 
 ## Validate The Setup
 
+Linux:
+
+```bash
+./.venv/bin/python tools/validate_project.py
+./.venv/bin/python tools/validate_model_package.py models/qwen3.5-2b-onnxopt-q4f16 --require-multimodal --require-provenance
+./tools/smoke_ort_genai.sh
+```
+
+Windows:
+
 ```powershell
 .\.venv\Scripts\python.exe tools\validate_project.py
 .\.venv\Scripts\python.exe tools\validate_model_package.py models\qwen3.5-2b-onnxopt-q4f16 --require-multimodal --require-provenance
@@ -158,7 +169,7 @@ For staged runtime debugging:
 Linux:
 
 ```bash
-LD_LIBRARY_PATH="$PWD/build:${LD_LIBRARY_PATH:-}" ./build/scene_model_probe \
+./build/scene_model_probe \
   --model-dir models/qwen3.5-2b-onnxopt-q4f16 \
   --image tmp/smoke.png \
   --stage generate \

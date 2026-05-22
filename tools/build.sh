@@ -59,6 +59,35 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 BUILD_DIR="$REPO_ROOT/build"
 
+find_tool() {
+  local name="$1"
+  local fallback="$REPO_ROOT/.venv/bin/$name"
+
+  if command -v "$name" >/dev/null 2>&1; then
+    command -v "$name"
+  elif [[ -x "$fallback" ]]; then
+    printf "%s\n" "$fallback"
+  else
+    return 1
+  fi
+}
+
+if ! CMAKE_BIN="$(find_tool cmake)"; then
+  echo "error: cmake is required" >&2
+  echo "Install it system-wide or run ./tools/setup_linux_env.sh to install local build tools under .venv." >&2
+  exit 1
+fi
+
+if ! CTEST_BIN="$(find_tool ctest)"; then
+  CTEST_BIN=""
+fi
+
+if NINJA_BIN="$(find_tool ninja)"; then
+  HAS_NINJA=1
+else
+  HAS_NINJA=0
+fi
+
 if [[ "$ORT_GENAI" == "1" ]]; then
   ORT_GENAI_ROOT="${ORT_GENAI_ROOT:-$REPO_ROOT/.deps/onnxruntime-genai-0.13.1-linux-x64/onnxruntime-genai-0.13.1-linux-x64}"
   ORT_RUNTIME_ROOT="${ORT_RUNTIME_ROOT:-$REPO_ROOT/.deps/onnxruntime-linux-x64-1.25.1/onnxruntime-linux-x64-1.25.1}"
@@ -80,8 +109,8 @@ configure_args=(
   -DSCENE_DESC_BUILD_TESTS=ON
 )
 
-if command -v ninja >/dev/null 2>&1; then
-  configure_args+=(-G Ninja)
+if [[ "$HAS_NINJA" == "1" ]]; then
+  configure_args+=(-G Ninja "-DCMAKE_MAKE_PROGRAM=$NINJA_BIN")
 fi
 
 if [[ "$ORT_GENAI" == "1" ]]; then
@@ -105,8 +134,8 @@ if [[ "$ORT_GENAI" == "1" ]]; then
   )
 fi
 
-cmake "${configure_args[@]}"
-cmake --build "$BUILD_DIR" --config "$BUILD_TYPE"
+"$CMAKE_BIN" "${configure_args[@]}"
+"$CMAKE_BIN" --build "$BUILD_DIR" --config "$BUILD_TYPE"
 
 if [[ "$ORT_GENAI" == "1" ]]; then
   cp -P "$ORT_GENAI_ROOT"/lib/libonnxruntime-genai.so* "$BUILD_DIR"/
@@ -120,5 +149,10 @@ if [[ "$ORT_GENAI" == "1" ]]; then
 fi
 
 if [[ "$RUN_TESTS" == "1" ]]; then
-  ctest --test-dir "$BUILD_DIR" --output-on-failure
+  if [[ -z "$CTEST_BIN" ]]; then
+    echo "error: ctest is required to run tests" >&2
+    echo "Install it system-wide or run ./tools/setup_linux_env.sh to install local build tools under .venv." >&2
+    exit 1
+  fi
+  "$CTEST_BIN" --test-dir "$BUILD_DIR" --output-on-failure
 fi

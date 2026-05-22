@@ -2,8 +2,9 @@
 
 ## Required Tools
 
-- CMake 3.24 or newer.
+- Python 3 for local tooling.
 - C++20 compiler.
+- CMake 3.24 or newer. On Linux, `tools/setup_linux_env.sh` can install local CMake/Ninja into `.venv`.
 - Optional: ONNX Runtime GenAI v0.13.1 or newer for Qwen3.5/Qwen3-VL work.
 
 ## Linux Quick Build
@@ -11,12 +12,13 @@
 On Linux x64, use the shell wrappers:
 
 ```bash
+./tools/setup_linux_env.sh
 ./tools/fetch_runtime_deps.sh
-./tools/setup_export_env.sh
 ./.venv/bin/python tools/prepare_qwen35_onnxopt_genai.py --output-dir models/qwen3.5-2b-onnxopt-q4f16 --variant q4f16
 ./tools/build.sh --test --ort-genai
 ./.venv/bin/python tools/make_test_image.py
-LD_LIBRARY_PATH="$PWD/build:${LD_LIBRARY_PATH:-}" ./build/scene_describer --config configs/qwen3.5-2b-onnxopt.ini --image tmp/smoke.png --json
+./build/scene_describer --config configs/qwen3.5-2b-onnxopt.ini --image tmp/smoke.png --json
+./tools/smoke_ort_genai.sh
 ```
 
 If executable bits are not preserved, run `chmod +x tools/*.sh`.
@@ -25,18 +27,13 @@ If executable bits are not preserved, run `chmod +x tools/*.sh`.
 
 Observed in this workspace:
 
-- `python --version`: Python 3.10.11
-- Default PATH does not expose `cmake`, `cl`, `g++`, `clang++`, or `ninja`.
-- Visual Studio Build Tools are installed under `C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools`.
-- MSVC, CMake, and Ninja work after initializing `VC\Auxiliary\Build\vcvars64.bat`.
+- `python3 --version`: Python 3.12.3
+- `g++` is available.
+- Default PATH does not expose `cmake` or `ninja`.
+- `.venv/bin/cmake` and `.venv/bin/ninja` are installed by `tools/setup_linux_env.sh`.
+- `tools/build.sh --test --ort-genai` passed using local Linux ORT GenAI 0.13.1 and ONNX Runtime 1.25.1 packages.
 
-Use the wrapper:
-
-```powershell
-.\tools\build.ps1 -Test
-```
-
-ORT GenAI builds need both `onnxruntime-genai.dll` and a compatible `onnxruntime.dll` copied beside the executable. This matters on this machine because `C:\Windows\System32\onnxruntime.dll` is version 1.17.1 and is too old for ORT GenAI 0.13.1.
+On Windows, ORT GenAI builds need both `onnxruntime-genai.dll` and a compatible `onnxruntime.dll` copied beside the executable.
 
 ```powershell
 .\tools\build.ps1 -Clean -Test -OrtGenAI `
@@ -54,10 +51,8 @@ ctest --test-dir build --output-on-failure
 
 With ONNX Runtime GenAI:
 
-```powershell
-cmake -S . -B build `
-  -DSCENE_DESC_ENABLE_ORT_GENAI=ON `
-  -DOnnxRuntimeGenAI_ROOT=C:\path\to\onnxruntime-genai
+```bash
+cmake -S . -B build \
+  -DSCENE_DESC_ENABLE_ORT_GENAI=ON \
+  -DOnnxRuntimeGenAI_ROOT=/path/to/onnxruntime-genai
 ```
-
-The ONNX backend currently has a placeholder implementation. Enabling the library link is the next implementation phase, not the end state.

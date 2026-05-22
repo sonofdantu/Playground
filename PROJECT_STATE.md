@@ -59,6 +59,11 @@ Verified so far:
 - `build\scene_describer.exe --config configs\qwen3.5-2b-onnxopt.ini --image tmp\smoke.png --max-new-tokens 32 --json` returned a correct scene description.
 - `build\scene_analyzer.exe --config configs\qwen3.5-2b-onnxopt.ini --image tmp\smoke.png ... --json` returned analyzer JSON through Qwen3.5.
 - ORT backend now strips a leading Qwen `<think>...</think>` wrapper from returned scene text.
+- Linux `.venv` now carries local CMake/Ninja plus lightweight Qwen3.5 preparation dependencies.
+- Linux `tools/build.sh --test --ort-genai` passed with ORT GenAI 0.13.1 and ONNX Runtime 1.25.1.
+- Linux `./build/scene_describer --config configs/qwen3.5-2b-onnxopt.ini --image tmp/smoke.png --max-new-tokens 16 --json` returned a correct Qwen3.5 scene description.
+- Added `tools/smoke_ort_genai.sh` as the Linux equivalent of the Windows ORT GenAI smoke gate.
+- Added `AGENTS.md` and `docs/LINUX_REPRODUCTION.md` so future AI agents can recreate the Linux Qwen3.5 runtime from a clean pull.
 
 ## Key Decisions
 
@@ -72,7 +77,6 @@ Verified so far:
 
 ## Known Blockers
 
-- Default PATH has Python 3.10.11, but no `cmake`, `cl`, `g++`, `clang++`, or `ninja`; use `tools/build.ps1` to enter the Visual Studio build environment.
 - PNG/JPEG decoding is not added yet. Current bootstrap loader supports binary PPM/PGM only.
 - The direct exported Qwen3.5 package at `models\qwen3.5-2b` is decoder-only. It is useful evidence, not a usable scene-description runtime package.
 - The working Qwen3.5 ONNX-OPT package at `models\qwen3.5-2b-onnxopt-q4f16` is still a prototype because it depends on local graph/package patches and needs provenance/legal and target-device review.
