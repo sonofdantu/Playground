@@ -15,9 +15,26 @@ This document is the contract for recreating those missing assets after a fresh 
 | App-local runtime DLLs | `build\onnxruntime-genai.dll`, `build\onnxruntime.dll` | `tools\build.ps1 -OrtGenAI ...` | no | Ensures Windows loads the matching runtime DLLs instead of an unrelated system copy. |
 | Smoke image | `tmp\smoke.png` | `tools\make_test_image.py` | no | Deterministic sample image used to prove image-to-description works. |
 
+Linux equivalents:
+
+| Asset | Local Path | Created By | Committed? | Purpose |
+| --- | --- | --- | --- | --- |
+| ONNX Runtime GenAI SDK | `.deps/onnxruntime-genai-0.13.1-linux-x64/onnxruntime-genai-0.13.1-linux-x64` | `tools/fetch_runtime_deps.sh` | no | Provides `include/ort_genai.h`, `lib/libonnxruntime-genai.so`, and headers. |
+| ONNX Runtime SDK | `.deps/onnxruntime-linux-x64-1.25.1/onnxruntime-linux-x64-1.25.1` | `tools/fetch_runtime_deps.sh` | no | Provides matching `lib/libonnxruntime.so`. |
+| ORT-enabled C++ build | `build/scene_describer`, `build/scene_analyzer`, `build/scene_model_probe` | `tools/build.sh --ort-genai` | no | Linux executables linked against ONNX Runtime GenAI. |
+| App-local runtime shared libraries | `build/libonnxruntime-genai.so`, `build/libonnxruntime.so` | `tools/build.sh --ort-genai` | no | Lets `LD_LIBRARY_PATH=$PWD/build` resolve the matching runtime libraries. |
+
 ## ORT GenAI Dependency Path
 
 Run:
+
+Linux:
+
+```bash
+./tools/fetch_runtime_deps.sh
+```
+
+Windows:
 
 ```powershell
 .\tools\fetch_runtime_deps.ps1
@@ -28,6 +45,13 @@ Expected roots:
 ```text
 .deps\onnxruntime-genai-0.13.1-win-x64\onnxruntime-genai-0.13.1-win-x64
 .deps\onnxruntime-win-x64-1.25.1\onnxruntime-win-x64-1.25.1
+```
+
+Expected Linux roots:
+
+```text
+.deps/onnxruntime-genai-0.13.1-linux-x64/onnxruntime-genai-0.13.1-linux-x64
+.deps/onnxruntime-linux-x64-1.25.1/onnxruntime-linux-x64-1.25.1
 ```
 
 The ORT GenAI root must contain:
@@ -46,6 +70,20 @@ lib\onnxruntime.lib
 lib\onnxruntime.dll
 ```
 
+On Linux, the ORT GenAI root must contain:
+
+```text
+include/ort_genai.h
+include/ort_genai_c.h
+lib/libonnxruntime-genai.so
+```
+
+The Linux ONNX Runtime root must contain:
+
+```text
+lib/libonnxruntime.so
+```
+
 The runtime versions are intentionally pinned together in `tools\fetch_runtime_deps.ps1`:
 
 ```text
@@ -62,6 +100,16 @@ models\qwen3.5-2b-onnxopt-q4f16
 ```
 
 Create it with:
+
+Linux:
+
+```bash
+./.venv/bin/python tools/prepare_qwen35_onnxopt_genai.py \
+  --output-dir models/qwen3.5-2b-onnxopt-q4f16 \
+  --variant q4f16
+```
+
+Windows:
 
 ```powershell
 .\.venv\Scripts\python.exe tools\prepare_qwen35_onnxopt_genai.py `
@@ -90,6 +138,17 @@ models\qwen3.5-2b-onnxopt-q4f16\
 
 Validate it with:
 
+Linux:
+
+```bash
+./.venv/bin/python tools/validate_model_package.py \
+  models/qwen3.5-2b-onnxopt-q4f16 \
+  --require-multimodal \
+  --require-provenance
+```
+
+Windows:
+
 ```powershell
 .\.venv\Scripts\python.exe tools\validate_model_package.py `
   models\qwen3.5-2b-onnxopt-q4f16 `
@@ -103,6 +162,22 @@ Important: `models\qwen3.5-2b` is not the working scene-description package. Tha
 
 Build with:
 
+Linux:
+
+```bash
+./tools/build.sh --test --ort-genai
+```
+
+Or with explicit roots:
+
+```bash
+./tools/build.sh --test --ort-genai \
+  --ort-genai-root .deps/onnxruntime-genai-0.13.1-linux-x64/onnxruntime-genai-0.13.1-linux-x64 \
+  --ort-runtime-root .deps/onnxruntime-linux-x64-1.25.1/onnxruntime-linux-x64-1.25.1
+```
+
+Windows:
+
 ```powershell
 .\tools\build.ps1 -Test -OrtGenAI `
   -OrtGenAIRoot .deps\onnxruntime-genai-0.13.1-win-x64\onnxruntime-genai-0.13.1-win-x64 `
@@ -113,7 +188,7 @@ This does three runtime-critical things:
 
 - configures CMake with `SCENE_DESC_ENABLE_ORT_GENAI=ON`;
 - points `FindOnnxRuntimeGenAI.cmake` at the ORT GenAI include/lib root;
-- copies `onnxruntime-genai.dll` and the matching `onnxruntime.dll` beside the built executables.
+- copies `onnxruntime-genai.dll` / `onnxruntime.dll` on Windows or `libonnxruntime-genai.so` / `libonnxruntime.so` on Linux beside the built executables.
 
 The ORT backend is compiled only when `SCENE_DESC_ENABLE_ORT_GENAI=ON`. Without that flag, `backend=ort-genai` is unavailable and only the mock backend is useful.
 
@@ -149,11 +224,31 @@ The key fields are:
 
 Create the smoke image:
 
+Linux:
+
+```bash
+./.venv/bin/python tools/make_test_image.py
+```
+
+Windows:
+
 ```powershell
 .\.venv\Scripts\python.exe tools\make_test_image.py
 ```
 
 Probe GenAI stage by stage:
+
+Linux:
+
+```bash
+LD_LIBRARY_PATH="$PWD/build:${LD_LIBRARY_PATH:-}" ./build/scene_model_probe \
+  --model-dir models/qwen3.5-2b-onnxopt-q4f16 \
+  --image tmp/smoke.png \
+  --stage generate \
+  --max-new-tokens 32
+```
+
+Windows:
 
 ```powershell
 .\build\scene_model_probe.exe `
@@ -164,6 +259,18 @@ Probe GenAI stage by stage:
 ```
 
 Run the normal CLI:
+
+Linux:
+
+```bash
+LD_LIBRARY_PATH="$PWD/build:${LD_LIBRARY_PATH:-}" ./build/scene_describer \
+  --config configs/qwen3.5-2b-onnxopt.ini \
+  --image tmp/smoke.png \
+  --max-new-tokens 32 \
+  --json
+```
+
+Windows:
 
 ```powershell
 .\build\scene_describer.exe `

@@ -20,7 +20,39 @@ For a human or AI agent starting cold:
 - Network access to GitHub and Hugging Face for dependencies and model artifacts.
 - Enough disk space for generated artifacts. A lean Qwen3.5 setup is roughly 2.5 GB; full local caches can exceed 10 GB.
 
-## Fresh Clone Setup
+## Linux Copy/Paste Setup
+
+Use this path on a Linux x64 machine with Python 3, CMake, and a C++20 compiler installed:
+
+```bash
+git clone https://github.com/sonofdantu/Playground.git
+cd Playground
+
+./tools/fetch_runtime_deps.sh
+./tools/setup_export_env.sh
+
+./.venv/bin/python tools/prepare_qwen35_onnxopt_genai.py \
+  --output-dir models/qwen3.5-2b-onnxopt-q4f16 \
+  --variant q4f16
+
+./tools/build.sh --test --ort-genai
+
+./.venv/bin/python tools/make_test_image.py
+
+LD_LIBRARY_PATH="$PWD/build:${LD_LIBRARY_PATH:-}" ./build/scene_describer \
+  --config configs/qwen3.5-2b-onnxopt.ini \
+  --image tmp/smoke.png \
+  --max-new-tokens 32 \
+  --json
+```
+
+If your checkout loses executable bits, run:
+
+```bash
+chmod +x tools/*.sh
+```
+
+## Windows Fresh Clone Setup
 
 ```powershell
 git clone https://github.com/sonofdantu/Playground.git
@@ -89,7 +121,19 @@ Expected result shape:
 
 The wording can vary because the config uses sampling. The important proof is `backend=ort-genai`, `model_type=qwen3_5`, and a scene description matching `tmp\smoke.png`.
 
-## Analyzer Smoke
+## Linux Analyzer Smoke
+
+```bash
+LD_LIBRARY_PATH="$PWD/build:${LD_LIBRARY_PATH:-}" ./build/scene_analyzer \
+  --config configs/qwen3.5-2b-onnxopt.ini \
+  --image tmp/smoke.png \
+  --timestamp-ms 1000 \
+  --request-id smoke-analyzer \
+  --track "0,t1,vehicle,78,85,94,38,0.91" \
+  --json
+```
+
+## Windows Analyzer Smoke
 
 ```powershell
 .\build\scene_analyzer.exe `
@@ -110,6 +154,18 @@ The wording can vary because the config uses sampling. The important proof is `b
 ```
 
 For staged runtime debugging:
+
+Linux:
+
+```bash
+LD_LIBRARY_PATH="$PWD/build:${LD_LIBRARY_PATH:-}" ./build/scene_model_probe \
+  --model-dir models/qwen3.5-2b-onnxopt-q4f16 \
+  --image tmp/smoke.png \
+  --stage generate \
+  --max-new-tokens 32
+```
+
+Windows:
 
 ```powershell
 .\build\scene_model_probe.exe `

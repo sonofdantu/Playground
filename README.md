@@ -44,6 +44,19 @@ scene_describer --config configs/mock.local.ini --image tmp/smoke.ppm
 
 ## Build
 
+Linux quick path:
+
+```bash
+./tools/fetch_runtime_deps.sh
+./tools/setup_export_env.sh
+./.venv/bin/python tools/prepare_qwen35_onnxopt_genai.py --output-dir models/qwen3.5-2b-onnxopt-q4f16 --variant q4f16
+./tools/build.sh --test --ort-genai
+./.venv/bin/python tools/make_test_image.py
+LD_LIBRARY_PATH="$PWD/build:${LD_LIBRARY_PATH:-}" ./build/scene_describer --config configs/qwen3.5-2b-onnxopt.ini --image tmp/smoke.png --max-new-tokens 32 --json
+```
+
+See [docs\QUICKSTART.md](docs/QUICKSTART.md) for full Windows and Linux startup paths.
+
 The local Visual Studio Build Tools install includes CMake, Ninja, and MSVC. The easiest path on this machine is:
 
 ```powershell

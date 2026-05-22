@@ -6,6 +6,21 @@
 - C++20 compiler.
 - Optional: ONNX Runtime GenAI v0.13.1 or newer for Qwen3.5/Qwen3-VL work.
 
+## Linux Quick Build
+
+On Linux x64, use the shell wrappers:
+
+```bash
+./tools/fetch_runtime_deps.sh
+./tools/setup_export_env.sh
+./.venv/bin/python tools/prepare_qwen35_onnxopt_genai.py --output-dir models/qwen3.5-2b-onnxopt-q4f16 --variant q4f16
+./tools/build.sh --test --ort-genai
+./.venv/bin/python tools/make_test_image.py
+LD_LIBRARY_PATH="$PWD/build:${LD_LIBRARY_PATH:-}" ./build/scene_describer --config configs/qwen3.5-2b-onnxopt.ini --image tmp/smoke.png --json
+```
+
+If executable bits are not preserved, run `chmod +x tools/*.sh`.
+
 ## Current Machine Check
 
 Observed in this workspace:
