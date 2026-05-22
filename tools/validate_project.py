@@ -28,6 +28,7 @@ REQUIRED_FILES = [
     "docs/MODEL_READINESS.md",
     "docs/PACKAGING.md",
     "docs/MODEL_PROVENANCE.md",
+    "docs/RUNTIME_ASSETS.md",
     "docs/PROGRESS.md",
     "PROJECT_STATE.md",
     "tools/benchmark_cli.py",

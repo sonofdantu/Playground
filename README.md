@@ -24,6 +24,7 @@ The codebase currently contains:
 - Runtime packaging script for local edge-device bundles.
 
 For a fresh clone, start with [docs\QUICKSTART.md](docs/QUICKSTART.md).
+For the generated runtime assets that are intentionally not committed, read [docs\RUNTIME_ASSETS.md](docs/RUNTIME_ASSETS.md).
 Read [PROJECT_STATE.md](PROJECT_STATE.md) first after any context reset.
 For model readiness and edge-performance direction, read [docs\MODEL_READINESS.md](docs/MODEL_READINESS.md) and [docs\EDGE_ROADMAP.md](docs/EDGE_ROADMAP.md).
 For the analyzer surface, read [docs\ANALYZER.md](docs/ANALYZER.md).

@@ -7,9 +7,10 @@ This guide recreates the local Qwen3.5 C++ scene-description result from a fresh
 For a human or AI agent starting cold:
 
 1. Read this file.
-2. Read `PROJECT_STATE.md` for the current technical status and known limits.
-3. Read `docs/MODEL_EXPORT.md` for the Qwen3.5 package-preparation details.
-4. Read `docs/MODEL_READINESS.md` before treating any model package as production-ready.
+2. Read `docs/RUNTIME_ASSETS.md` to understand what files are generated locally and why they are not committed.
+3. Read `PROJECT_STATE.md` for the current technical status and known limits.
+4. Read `docs/MODEL_EXPORT.md` for the Qwen3.5 package-preparation details.
+5. Read `docs/MODEL_READINESS.md` before treating any model package as production-ready.
 
 ## Prerequisites
 
@@ -32,6 +33,8 @@ Fetch ONNX Runtime GenAI and ONNX Runtime runtime dependencies:
 .\tools\fetch_runtime_deps.ps1
 ```
 
+This creates `.deps\onnxruntime-genai-0.13.1-win-x64\...` and `.deps\onnxruntime-win-x64-1.25.1\...`. See `docs/RUNTIME_ASSETS.md` for the exact asset contract.
+
 Set up the Python export/preparation environment:
 
 ```powershell
@@ -53,6 +56,8 @@ Build the C++ runtime with ORT GenAI:
   -OrtGenAIRoot .deps\onnxruntime-genai-0.13.1-win-x64\onnxruntime-genai-0.13.1-win-x64 `
   -OrtRuntimeRoot .deps\onnxruntime-win-x64-1.25.1\onnxruntime-win-x64-1.25.1
 ```
+
+This enables `SCENE_DESC_ENABLE_ORT_GENAI=ON`, links `onnxruntime-genai.lib`, and copies `onnxruntime-genai.dll` plus the matching `onnxruntime.dll` into `build`.
 
 Generate the sample image:
 
