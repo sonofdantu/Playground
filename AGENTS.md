@@ -7,6 +7,7 @@ Start here after a fresh clone or context reset:
 1. Read `PROJECT_STATE.md`.
 2. Read `docs/LINUX_REPRODUCTION.md` for the tested Linux Qwen3.5 path.
 3. Read `docs/RUNTIME_ASSETS.md` before assuming generated files exist.
+4. Read `docs/CUDA.md` before attempting GPU/CUDA work.
 
 Do not commit generated runtime assets:
 
@@ -30,3 +31,7 @@ The Linux proof path is:
 ```
 
 Expected smoke evidence includes `backend=ort-genai`, `model_type=qwen3_5`, and a description of `tmp/smoke.png` mentioning the red house, blue vehicle, green ground, or yellow sun.
+
+CUDA status: CUDA model load has been reproduced on WSL2, but token generation currently segfaults in ORT GenAI CUDA. Do not mark CUDA complete until `tools/smoke_ort_genai.sh --execution-provider cuda` returns scene JSON.
+
+For CUDA debugging on another machine, run `tools/debug_cuda_ort_genai.sh` and inspect the generated `tmp/cuda-debug-*` logs before changing model/runtime code.

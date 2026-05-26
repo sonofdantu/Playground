@@ -129,6 +129,12 @@ def copy_downloaded(repo_id: str, filename: str, target: Path, cache_dir: Path, 
     print(f"{filename} -> {target}")
 
 
+def list_repo_files(repo_id: str, revision: str | None) -> list[str]:
+    from huggingface_hub import HfApi
+
+    return HfApi().list_repo_files(repo_id=repo_id, revision=revision)
+
+
 def rename_graph_values(model: onnx.ModelProto, mapping: dict[str, str]) -> None:
     def rename_name(name: str) -> str:
         return mapping.get(name, name)
@@ -421,6 +427,7 @@ def main() -> None:
 
     copy_downloaded(args.repo_id, "processor_config.json", output_dir / "hf_processor_config.json", cache_dir, args.revision)
 
+    repo_files = list_repo_files(args.repo_id, args.revision)
     selected_onnx = [
         variant_files["decoder"],
         variant_files["embedding"],
@@ -429,7 +436,12 @@ def main() -> None:
     for stem in selected_onnx:
         copy_downloaded(args.repo_id, f"onnx/{stem}.onnx", output_dir / "onnx" / f"{stem}.onnx", cache_dir, args.revision)
         if not args.metadata_only:
-            copy_downloaded(args.repo_id, f"onnx/{stem}.onnx_data", output_dir / "onnx" / f"{stem}.onnx_data", cache_dir, args.revision)
+            data_prefix = f"onnx/{stem}.onnx_data"
+            data_files = sorted(name for name in repo_files if name == data_prefix or name.startswith(data_prefix + "_"))
+            if not data_files:
+                raise SystemExit(f"missing external data files for {stem}: expected {data_prefix}")
+            for data_file in data_files:
+                copy_downloaded(args.repo_id, data_file, output_dir / data_file, cache_dir, args.revision)
 
     patch_decoder_graph(output_dir / "onnx" / f"{variant_files['decoder']}.onnx")
     patch_embedding_graph(output_dir / "onnx" / f"{variant_files['embedding']}.onnx")

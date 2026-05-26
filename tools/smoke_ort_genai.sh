@@ -5,6 +5,7 @@ MODEL_DIR="models/qwen3.5-2b-onnxopt-q4f16"
 CONFIG_PATH="configs/qwen3.5-2b-onnxopt.ini"
 IMAGE_PATH="tmp/smoke.png"
 MAX_NEW_TOKENS=16
+EXECUTION_PROVIDER=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -24,6 +25,10 @@ while [[ $# -gt 0 ]]; do
       MAX_NEW_TOKENS="$2"
       shift 2
       ;;
+    --execution-provider)
+      EXECUTION_PROVIDER="$2"
+      shift 2
+      ;;
     -h|--help)
       cat <<'EOF'
 Usage: tools/smoke_ort_genai.sh [options]
@@ -33,6 +38,7 @@ Options:
   --config <path>          Runtime config, default configs/qwen3.5-2b-onnxopt.ini
   --image <path>           Smoke image path, default tmp/smoke.png
   --max-new-tokens <n>     Generation length, default 16
+  --execution-provider <n> Override execution provider, for example cuda
 EOF
       exit 0
       ;;
@@ -76,5 +82,16 @@ elif [[ ! -f "$IMAGE_PATH" ]]; then
   exit 1
 fi
 
-"$MODEL_PROBE" --model-dir "$MODEL_DIR" --image "$IMAGE_PATH" --stage token --max-new-tokens 1
-"$SCENE_DESCRIBER" --config "$CONFIG_PATH" --image "$IMAGE_PATH" --max-new-tokens "$MAX_NEW_TOKENS" --json
+probe_args=("$MODEL_PROBE" --model-dir "$MODEL_DIR" --image "$IMAGE_PATH" --stage token --max-new-tokens 1)
+cli_args=("$SCENE_DESCRIBER" --config "$CONFIG_PATH" --image "$IMAGE_PATH" --max-new-tokens "$MAX_NEW_TOKENS" --json)
+if [[ -n "$EXECUTION_PROVIDER" ]]; then
+  probe_args+=(--execution-provider "$EXECUTION_PROVIDER")
+  cli_args+=(--execution-provider "$EXECUTION_PROVIDER")
+fi
+
+if [[ "$EXECUTION_PROVIDER" == "cuda" ]]; then
+  export LD_LIBRARY_PATH="$("$SCRIPT_DIR/cuda_library_path.sh"):${LD_LIBRARY_PATH:-}"
+fi
+
+"${probe_args[@]}"
+"${cli_args[@]}"

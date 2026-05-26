@@ -64,6 +64,8 @@ Verified so far:
 - Linux `./build/scene_describer --config configs/qwen3.5-2b-onnxopt.ini --image tmp/smoke.png --max-new-tokens 16 --json` returned a correct Qwen3.5 scene description.
 - Added `tools/smoke_ort_genai.sh` as the Linux equivalent of the Windows ORT GenAI smoke gate.
 - Added `AGENTS.md` and `docs/LINUX_REPRODUCTION.md` so future AI agents can recreate the Linux Qwen3.5 runtime from a clean pull.
+- Added Linux CUDA dependency/setup plumbing. CUDA model load reaches `ok=model type=qwen3_5 device=CUDA` on WSL2 RTX 4070 Laptop, but ORT GenAI CUDA token generation segfaults before producing output.
+- Added `tools/debug_cuda_ort_genai.sh` to collect CUDA provider, library-resolution, model-stage, token-stage, `dmesg`, and optional `gdb` evidence on native Linux.
 
 ## Key Decisions
 
@@ -82,6 +84,7 @@ Verified so far:
 - The working Qwen3.5 ONNX-OPT package at `models\qwen3.5-2b-onnxopt-q4f16` is still a prototype because it depends on local graph/package patches and needs provenance/legal and target-device review.
 - The onnx-community Qwen3-VL ONNX package is missing explicit license metadata. Use it for smoke testing only until legal provenance is resolved.
 - Current image support depends on ORT GenAI image loading for the real backend; the shared C++ image loader is still only a bootstrap PPM/PGM loader for mock tests.
+- CUDA execution is not production-ready in this WSL2 test environment: ORT GenAI loads Qwen models on CUDA, but generation segfaults in the runtime before the first token.
 
 ## Next Steps
 
@@ -90,3 +93,4 @@ Verified so far:
 3. Add ZMQ protocol compatibility for analyzer requests/results if needed.
 4. Add runtime image decoding policy for non-ORT preprocessing paths.
 5. Decide the production model package source after legal/provenance review.
+6. Re-test CUDA generation on native Linux or a newer ORT GenAI CUDA build before claiming GPU support.

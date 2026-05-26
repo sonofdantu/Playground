@@ -91,6 +91,8 @@ fi
 if [[ "$ORT_GENAI" == "1" ]]; then
   ORT_GENAI_ROOT="${ORT_GENAI_ROOT:-$REPO_ROOT/.deps/onnxruntime-genai-0.13.1-linux-x64/onnxruntime-genai-0.13.1-linux-x64}"
   ORT_RUNTIME_ROOT="${ORT_RUNTIME_ROOT:-$REPO_ROOT/.deps/onnxruntime-linux-x64-1.25.1/onnxruntime-linux-x64-1.25.1}"
+  ORT_GENAI_ROOT="$(realpath "$ORT_GENAI_ROOT")"
+  ORT_RUNTIME_ROOT="$(realpath "$ORT_RUNTIME_ROOT")"
 fi
 
 if [[ "$CLEAN" == "1" && -d "$BUILD_DIR" ]]; then
@@ -138,11 +140,11 @@ fi
 "$CMAKE_BIN" --build "$BUILD_DIR" --config "$BUILD_TYPE"
 
 if [[ "$ORT_GENAI" == "1" ]]; then
-  cp -P "$ORT_GENAI_ROOT"/lib/libonnxruntime-genai.so* "$BUILD_DIR"/
+  cp -P "$ORT_GENAI_ROOT"/lib/libonnxruntime-genai*.so* "$BUILD_DIR"/
   if [[ -n "$ORT_RUNTIME_ROOT" ]]; then
     cp -P "$ORT_RUNTIME_ROOT"/lib/libonnxruntime.so* "$BUILD_DIR"/
-    if compgen -G "$ORT_RUNTIME_ROOT/lib/libonnxruntime_providers_shared.so*" >/dev/null; then
-      cp -P "$ORT_RUNTIME_ROOT"/lib/libonnxruntime_providers_shared.so* "$BUILD_DIR"/
+    if compgen -G "$ORT_RUNTIME_ROOT/lib/libonnxruntime_providers_*.so*" >/dev/null; then
+      cp -P "$ORT_RUNTIME_ROOT"/lib/libonnxruntime_providers_*.so* "$BUILD_DIR"/
     fi
   fi
   export LD_LIBRARY_PATH="$BUILD_DIR:$ORT_GENAI_ROOT/lib:${ORT_RUNTIME_ROOT:+$ORT_RUNTIME_ROOT/lib:}${LD_LIBRARY_PATH:-}"

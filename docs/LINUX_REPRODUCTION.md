@@ -10,6 +10,8 @@ Produce a C++ runtime that can describe `tmp/smoke.png` through the real ORT Gen
 - model type: `qwen3_5`
 - model package: `models/qwen3.5-2b-onnxopt-q4f16`
 
+This CPU path is the currently verified end-to-end scene-description path. CUDA setup and the current CUDA blocker are tracked in `docs/CUDA.md`.
+
 ## Fresh Linux Setup
 
 Prerequisites:
