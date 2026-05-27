@@ -23,11 +23,11 @@ Required output shape:
 - `genai_config.json` with `model.decoder`, `model.embedding`, and `model.vision`
 - `MODEL_PROVENANCE.json` with local hashes and Apache-2.0 license signal
 
-Current blocker: ORT GenAI `v0.13.1` exports the Qwen3.5 decoder but not the full vision/embedding package.
+Current state: `tools/prepare_qwen35_onnxopt_genai.py` assembles the complete experimental Qwen3.5 ONNX-OPT package from public decoder, embedding, and vision graphs.
 
 ## Track 3: Speed
 
-CPU is the current baseline:
+CPU is the baseline and raw ONNX Runtime CUDA is now the verified Linux GPU path:
 
 - model load: about 4.61 seconds
 - steady in-process request: about 3.25 seconds for 39 generated tokens
@@ -36,8 +36,8 @@ CPU is the current baseline:
 Next measurements should be collected on the target hardware with:
 
 - CPU INT4 baseline
+- raw ONNX Runtime CUDA on NVIDIA hardware
 - DirectML on Windows GPUs, if the deployment target has supported hardware
-- CUDA, if the target has NVIDIA hardware
 - QNN, if the target is Qualcomm/NPU-class hardware
 
 Keep prompts short and cap `max_new_tokens` aggressively for edge use. The current scene-description task does not need long generation by default.

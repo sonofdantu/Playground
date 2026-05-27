@@ -32,6 +32,6 @@ The Linux proof path is:
 
 Expected smoke evidence includes `backend=ort-genai`, `model_type=qwen3_5`, and a description of `tmp/smoke.png` mentioning the red house, blue vehicle, green ground, or yellow sun.
 
-CUDA status: CUDA model load has been reproduced on WSL2, but token generation currently segfaults in ORT GenAI CUDA. Do not mark CUDA complete until `tools/smoke_ort_genai.sh --execution-provider cuda` returns scene JSON.
+CUDA status: Qwen3.5 scene description now works on WSL2 through the C++ raw ONNX Runtime CUDA loop. `tools/smoke_ort_genai.sh --execution-provider cuda --config configs/qwen3.5-2b-onnxopt-cuda.ini` must return scene JSON with `metadata.execution_provider=raw-ort-cuda`.
 
-For CUDA debugging on another machine, run `tools/debug_cuda_ort_genai.sh` and inspect the generated `tmp/cuda-debug-*` logs before changing model/runtime code.
+The direct ORT GenAI CUDA generator path still crashes after `stage=generator`; do not regress the stable raw-ORT CUDA path while investigating that legacy failure. For CUDA debugging on another machine, run `tools/debug_cuda_ort_genai.sh` and inspect the generated `tmp/cuda-debug-*` logs before changing model/runtime code.

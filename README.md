@@ -22,6 +22,7 @@ The codebase currently contains:
 - Scripted dependency fetch, export setup, and model export workflows.
 - CLI-inclusive and in-process benchmark tooling.
 - Runtime packaging script for local edge-device bundles.
+- Verified Linux/WSL2 CUDA path for Qwen3.5 through a C++ raw ONNX Runtime CUDA generation loop.
 
 For a fresh clone, start with [docs\QUICKSTART.md](docs/QUICKSTART.md).
 For the generated runtime assets that are intentionally not committed, read [docs\RUNTIME_ASSETS.md](docs/RUNTIME_ASSETS.md).
@@ -56,6 +57,20 @@ Linux quick path:
 ./.venv/bin/python tools/make_test_image.py
 ./build/scene_describer --config configs/qwen3.5-2b-onnxopt.ini --image tmp/smoke.png --max-new-tokens 32 --json
 ./tools/smoke_ort_genai.sh
+```
+
+Linux CUDA smoke path:
+
+```bash
+./tools/setup_linux_cuda_env.sh
+./tools/fetch_runtime_deps.sh --cuda
+./tools/build.sh --clean --test --ort-genai \
+  --ort-genai-root "$PWD/.deps/onnxruntime-genai-0.13.1-linux-x64-cuda/onnxruntime-genai-0.13.1-linux-x64-cuda" \
+  --ort-runtime-root "$PWD/.deps/onnxruntime-linux-x64-gpu-1.25.1/onnxruntime-linux-x64-gpu-1.25.1"
+./tools/smoke_ort_genai.sh \
+  --execution-provider cuda \
+  --config configs/qwen3.5-2b-onnxopt-cuda.ini \
+  --max-new-tokens 32
 ```
 
 See [docs\QUICKSTART.md](docs/QUICKSTART.md) for full Windows and Linux startup paths.

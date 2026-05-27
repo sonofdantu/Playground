@@ -54,6 +54,9 @@ if ($OrtGenAI) {
       $runtimePathEntries += $ortGenAILib
     }
   }
+  if ($OrtRuntimeRoot) {
+    $configureArgs += "-DOnnxRuntime_ROOT=`"$OrtRuntimeRoot`""
+  }
 }
 
 $configureCommand = "`"$cmake`" $($configureArgs -join ' ')"

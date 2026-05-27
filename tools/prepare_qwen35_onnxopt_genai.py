@@ -169,6 +169,15 @@ def patch_decoder_graph(path: Path) -> None:
                 model.graph.initializer.append(helper.make_tensor("num_logits_to_keep", TensorProto.INT64, [], [0]))
             print("inlined decoder num_logits_to_keep=0 initializer")
             break
+
+    patched_attention_bias = 0
+    for node in model.graph.node:
+        if node.op_type == "GroupQueryAttention" and len(node.input) >= 11 and node.input[10]:
+            node.input[10] = ""
+            patched_attention_bias += 1
+    if patched_attention_bias:
+        print(f"removed optional GroupQueryAttention attention_bias inputs for CUDA: {patched_attention_bias}")
+
     onnx.save(model, path)
     print(f"patched decoder recurrent I/O names: {path}")
 
@@ -463,6 +472,7 @@ def main() -> None:
             notes=[
                 "Experimental ORT GenAI package assembled from ONNX-OPT graphs.",
                 "Decoder recurrent I/O names patched for ORT GenAI recurrent-state discovery.",
+                "Decoder GroupQueryAttention optional attention_bias inputs removed for ORT CUDA compatibility on no-padding prompts.",
                 "Embedding graph patched to scatter image_features into image token positions.",
             ],
         )

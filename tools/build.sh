@@ -131,6 +131,7 @@ if [[ "$ORT_GENAI" == "1" ]]; then
   configure_args+=(
     -DSCENE_DESC_ENABLE_ORT_GENAI=ON
     "-DOnnxRuntimeGenAI_ROOT=$ORT_GENAI_ROOT"
+    "-DOnnxRuntime_ROOT=$ORT_RUNTIME_ROOT"
     "-DCMAKE_INSTALL_RPATH=\$ORIGIN"
     "-DCMAKE_BUILD_RPATH=\$ORIGIN"
   )

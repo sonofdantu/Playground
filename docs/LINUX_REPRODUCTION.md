@@ -10,7 +10,7 @@ Produce a C++ runtime that can describe `tmp/smoke.png` through the real ORT Gen
 - model type: `qwen3_5`
 - model package: `models/qwen3.5-2b-onnxopt-q4f16`
 
-This CPU path is the currently verified end-to-end scene-description path. CUDA setup and the current CUDA blocker are tracked in `docs/CUDA.md`.
+This CPU path is the baseline end-to-end scene-description path. CUDA setup and the verified raw ONNX Runtime CUDA path are tracked in `docs/CUDA.md`.
 
 ## Fresh Linux Setup
 
@@ -68,6 +68,24 @@ Known-good output shape:
 
 The exact sentence can vary because the config uses sampling. The important checks are `backend=ort-genai`, `model_type=qwen3_5`, and a plausible description of the generated smoke image.
 
+## CUDA Proof
+
+On a CUDA-capable Linux/WSL2 machine:
+
+```bash
+./tools/setup_linux_cuda_env.sh
+./tools/fetch_runtime_deps.sh --cuda
+./tools/build.sh --clean --test --ort-genai \
+  --ort-genai-root "$PWD/.deps/onnxruntime-genai-0.13.1-linux-x64-cuda/onnxruntime-genai-0.13.1-linux-x64-cuda" \
+  --ort-runtime-root "$PWD/.deps/onnxruntime-linux-x64-gpu-1.25.1/onnxruntime-linux-x64-gpu-1.25.1"
+./tools/smoke_ort_genai.sh \
+  --execution-provider cuda \
+  --config configs/qwen3.5-2b-onnxopt-cuda.ini \
+  --max-new-tokens 32
+```
+
+Expected CUDA evidence includes `ok=model type=qwen3_5 device=CUDA`, JSON `metadata.execution_provider=raw-ort-cuda`, and a plausible sentence describing `tmp/smoke.png`.
+
 ## Analyzer Proof
 
 ```bash
@@ -102,3 +120,4 @@ Do not commit ONNX weights, external data shards, downloaded runtime libraries, 
 - If ORT headers or shared libraries are missing, rerun `./tools/fetch_runtime_deps.sh`.
 - If the model directory is missing or incomplete, rerun `prepare_qwen35_onnxopt_genai.py`; unauthenticated Hugging Face downloads can be rate-limited.
 - If `backend=ort-genai` is unavailable, rebuild with `./tools/build.sh --test --ort-genai`.
+- If CUDA smoke fails, run `./tools/debug_cuda_ort_genai.sh` and inspect `tmp/cuda-debug-*/raw-ort-cuda-cli.log`.

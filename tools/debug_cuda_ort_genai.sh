@@ -92,7 +92,7 @@ run_shell_log nvidia-smi "nvidia-smi"
 run_shell_log nvidia-smi-query "nvidia-smi --query-gpu=name,driver_version,memory.used,memory.total,utilization.gpu --format=csv"
 run_shell_log build-libs "find build -maxdepth 1 -type f -name 'lib*.so*' -printf '%f\\n' | sort"
 run_shell_log ldd-scene-model-probe "ldd build/scene_model_probe"
-run_shell_log ldd-genai-cuda "ldd build/libonnxruntime-genai-cuda.so"
+run_shell_log ldd-genai-cuda "ldd build/libonnxruntime-genai.so"
 run_shell_log ldd-ort-cuda "ldd build/libonnxruntime_providers_cuda.so"
 run_shell_log python-packages ".venv/bin/python -m pip freeze | grep -E 'onnxruntime|nvidia-' | sort"
 run_shell_log dmesg-before "dmesg | tail -80"
@@ -117,6 +117,13 @@ run_log token-stage ./build/scene_model_probe \
   --stage token \
   --max-new-tokens "$MAX_NEW_TOKENS"
 token_status="$(tail -n 1 "$OUT_DIR/token-stage.log" | sed 's/^exit=//')"
+
+run_log raw-ort-cuda-cli ./build/scene_describer \
+  --config configs/qwen3.5-2b-onnxopt-cuda.ini \
+  --image "$IMAGE_PATH" \
+  --max-new-tokens 32 \
+  --json
+raw_cli_status="$(tail -n 1 "$OUT_DIR/raw-ort-cuda-cli.log" | sed 's/^exit=//')"
 
 if command -v gdb >/dev/null 2>&1; then
   {
@@ -144,17 +151,20 @@ CUDA ORT GenAI debug summary
 
 model_stage_exit=$model_status
 token_stage_exit=$token_status
+raw_ort_cuda_cli_exit=$raw_cli_status
 
-Expected current WSL2 blocker:
-- model stage exits 0 and prints device=CUDA
-- token stage exits 139 when ORT GenAI CUDA generation segfaults
+Expected stable CUDA path:
+- raw_ort_cuda_cli_exit=0 and JSON metadata.execution_provider=raw-ort-cuda
+
+Known legacy blocker:
+- token stage may exit 139 when the ORT GenAI CUDA generator path is used directly
 
 Logs: $OUT_DIR
 EOF
 
 cat "$OUT_DIR/summary.txt"
 
-if [[ "$token_status" == "0" ]]; then
+if [[ "$raw_cli_status" == "0" ]]; then
   exit 0
 fi
-exit "$token_status"
+exit "$raw_cli_status"

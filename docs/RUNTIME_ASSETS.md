@@ -24,6 +24,9 @@ Linux equivalents:
 | ONNX Runtime SDK | `.deps/onnxruntime-linux-x64-1.25.1/onnxruntime-linux-x64-1.25.1` | `tools/fetch_runtime_deps.sh` | no | Provides matching `lib/libonnxruntime.so`. |
 | ORT-enabled C++ build | `build/scene_describer`, `build/scene_analyzer`, `build/scene_model_probe` | `tools/build.sh --ort-genai` | no | Linux executables linked against ONNX Runtime GenAI. |
 | App-local runtime shared libraries | `build/libonnxruntime-genai.so`, `build/libonnxruntime.so` | `tools/build.sh --ort-genai` | no | Lets the executable rpath or `LD_LIBRARY_PATH=$PWD/build` resolve matching runtime libraries. |
+| CUDA ORT GenAI SDK | `.deps/onnxruntime-genai-0.13.1-linux-x64-cuda/onnxruntime-genai-0.13.1-linux-x64-cuda` | `tools/fetch_runtime_deps.sh --cuda` | no | Provides the CUDA ORT GenAI SDK used for preprocessing/tokenization and compatibility probes. |
+| CUDA ONNX Runtime SDK | `.deps/onnxruntime-linux-x64-gpu-1.25.1/onnxruntime-linux-x64-gpu-1.25.1` | `tools/fetch_runtime_deps.sh --cuda` | no | Provides `libonnxruntime.so` plus CUDA provider libraries for the raw ORT CUDA Qwen3.5 loop. |
+| CUDA user-space libraries | `.venv/lib/python*/site-packages/nvidia` | `tools/setup_linux_cuda_env.sh` | no | Provides CUDA/cuDNN/cuBLAS libraries used by ONNX Runtime CUDA in local Linux/WSL2 setups without a system CUDA toolkit. |
 
 ## ORT GenAI Dependency Path
 
@@ -84,6 +87,13 @@ The Linux ONNX Runtime root must contain:
 
 ```text
 lib/libonnxruntime.so
+```
+
+For CUDA builds, the Linux ONNX Runtime root must also contain:
+
+```text
+lib/libonnxruntime_providers_cuda.so
+lib/libonnxruntime_providers_shared.so
 ```
 
 The runtime versions are intentionally pinned together in `tools\fetch_runtime_deps.ps1`:
@@ -159,6 +169,8 @@ Windows:
 ```
 
 Important: `models\qwen3.5-2b` is not the working scene-description package. That directory is the direct ORT GenAI source-builder export and is decoder-only. The working package is `models\qwen3.5-2b-onnxopt-q4f16`.
+
+For CUDA, `tools/prepare_qwen35_onnxopt_genai.py` also removes the optional decoder `GroupQueryAttention` `attention_bias` input. ORT CUDA 1.25/1.26 rejects that optional input, and the project's single-image no-padding prompt does not need it.
 
 ## ORT-Enabled Build Path
 

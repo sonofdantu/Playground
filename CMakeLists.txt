@@ -28,6 +28,7 @@ add_library(scene_describer_core
   src/backends/backend_factory.cpp
   src/backends/mock_backend.cpp
   src/backends/ort_genai_backend.cpp
+  src/backends/qwen35_raw_ort_cuda.cpp
   src/core/config.cpp
   src/core/image.cpp
 )
@@ -43,7 +44,7 @@ scene_desc_configure_target(scene_describer_core)
 if(SCENE_DESC_ENABLE_ORT_GENAI)
   find_package(OnnxRuntimeGenAI REQUIRED)
   target_compile_definitions(scene_describer_core PRIVATE SCENE_DESC_HAS_ORT_GENAI=1)
-  target_link_libraries(scene_describer_core PRIVATE OnnxRuntimeGenAI::OnnxRuntimeGenAI)
+  target_link_libraries(scene_describer_core PRIVATE OnnxRuntimeGenAI::OnnxRuntimeGenAI OnnxRuntime::OnnxRuntime)
 endif()
 
 add_executable(scene_describer src/cli/main.cpp)

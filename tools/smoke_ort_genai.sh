@@ -82,7 +82,12 @@ elif [[ ! -f "$IMAGE_PATH" ]]; then
   exit 1
 fi
 
-probe_args=("$MODEL_PROBE" --model-dir "$MODEL_DIR" --image "$IMAGE_PATH" --stage token --max-new-tokens 1)
+probe_stage="token"
+if [[ "$EXECUTION_PROVIDER" == "cuda" ]]; then
+  probe_stage="model"
+fi
+
+probe_args=("$MODEL_PROBE" --model-dir "$MODEL_DIR" --image "$IMAGE_PATH" --stage "$probe_stage" --max-new-tokens 1)
 cli_args=("$SCENE_DESCRIBER" --config "$CONFIG_PATH" --image "$IMAGE_PATH" --max-new-tokens "$MAX_NEW_TOKENS" --json)
 if [[ -n "$EXECUTION_PROVIDER" ]]; then
   probe_args+=(--execution-provider "$EXECUTION_PROVIDER")

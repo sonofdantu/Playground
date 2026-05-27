@@ -1,5 +1,7 @@
 #include "scene_describer/scene_describer.hpp"
 
+#include "qwen35_raw_ort_cuda.hpp"
+
 #include <algorithm>
 #include <filesystem>
 #include <memory>
@@ -62,6 +64,18 @@ void ConfigureProvider(OgaConfig& config, const RuntimeConfig& runtime_config) {
   }
 }
 
+bool ShouldBootstrapOgaOnCpu(const RuntimeConfig& runtime_config) {
+  const auto provider = NormalizeProvider(runtime_config.execution_provider);
+  if (provider != "cuda") {
+    return false;
+  }
+  auto model_dir = runtime_config.model_dir;
+  std::transform(model_dir.begin(), model_dir.end(), model_dir.begin(), [](unsigned char ch) {
+    return static_cast<char>(std::tolower(ch));
+  });
+  return model_dir.find("qwen3.5") != std::string::npos || model_dir.find("qwen35") != std::string::npos;
+}
+
 size_t GetInputTokenCount(OgaNamedTensors& inputs) {
   auto input_ids = inputs.Get("input_ids");
   if (!input_ids) {
@@ -110,7 +124,9 @@ class OrtGenAiSceneDescriber final : public ISceneDescriber {
   explicit OrtGenAiSceneDescriber(RuntimeConfig config) : config_(std::move(config)) {
 #if SCENE_DESC_HAS_ORT_GENAI
     auto oga_config = OgaConfig::Create(config_.model_dir.c_str());
-    ConfigureProvider(*oga_config, config_);
+    if (!ShouldBootstrapOgaOnCpu(config_)) {
+      ConfigureProvider(*oga_config, config_);
+    }
     model_ = OgaModel::Create(*oga_config);
     processor_ = OgaMultiModalProcessor::Create(*model_);
 #endif
@@ -144,6 +160,15 @@ class OrtGenAiSceneDescriber final : public ISceneDescriber {
       const auto prompt = BuildPrompt(model_type, request.prompt, static_cast<int>(image_paths.size()));
       auto inputs = processor_->ProcessImages(prompt.c_str(), images.get());
       const auto input_token_count = GetInputTokenCount(*inputs);
+
+      if (ShouldUseQwen35RawOrtCuda(config_, model_type)) {
+        return DescribeQwen35RawOrtCuda(config_,
+                                        *processor_,
+                                        *inputs,
+                                        model_type,
+                                        input_token_count,
+                                        requested_image_paths.size());
+      }
 
       auto params = OgaGeneratorParams::Create(*model_);
       const auto requested_new_tokens = std::max(1, request.generation.max_new_tokens);
