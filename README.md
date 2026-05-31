@@ -28,6 +28,7 @@ For a fresh clone, start with [docs\QUICKSTART.md](docs/QUICKSTART.md).
 For the generated runtime assets that are intentionally not committed, read [docs\RUNTIME_ASSETS.md](docs/RUNTIME_ASSETS.md).
 Read [PROJECT_STATE.md](PROJECT_STATE.md) first after any context reset.
 For agent-oriented Linux reproduction, read [AGENTS.md](AGENTS.md) and [docs/LINUX_REPRODUCTION.md](docs/LINUX_REPRODUCTION.md).
+For the easiest fresh-clone CUDA reproduction, read [docs/AI_CUDA_REPRODUCTION.md](docs/AI_CUDA_REPRODUCTION.md).
 For the current CUDA status and commands, read [docs/CUDA.md](docs/CUDA.md).
 For model readiness and edge-performance direction, read [docs\MODEL_READINESS.md](docs/MODEL_READINESS.md) and [docs\EDGE_ROADMAP.md](docs/EDGE_ROADMAP.md).
 For the analyzer surface, read [docs\ANALYZER.md](docs/ANALYZER.md).

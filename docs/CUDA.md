@@ -2,6 +2,8 @@
 
 This repository now has a verified Linux/WSL2 CUDA path for Qwen3.5-2B scene description.
 
+If you are starting from a fresh clone, use `docs/AI_CUDA_REPRODUCTION.md` first. It is the most explicit copy/paste guide and includes C++ proof, CUDA proof, expected output, and failure triage.
+
 The stable CUDA route is a hybrid C++ runtime:
 
 - ORT GenAI loads the model package on CPU only for Qwen-compatible image preprocessing, prompt tokenization, and token decoding.

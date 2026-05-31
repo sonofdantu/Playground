@@ -12,6 +12,8 @@ Produce a C++ runtime that can describe `tmp/smoke.png` through the real ORT Gen
 
 This CPU path is the baseline end-to-end scene-description path. CUDA setup and the verified raw ONNX Runtime CUDA path are tracked in `docs/CUDA.md`.
 
+If the goal is only to reproduce the verified C++ CUDA environment from a fresh clone, use `docs/AI_CUDA_REPRODUCTION.md` first. It is the most direct step-by-step guide.
+
 ## Fresh Linux Setup
 
 Prerequisites:
