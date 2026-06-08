@@ -49,7 +49,15 @@ Observed local Qwen3-VL output:
 }
 ```
 
-The analyzer CLI supports repeated `--image` arguments. The current ORT GenAI backend now passes multiple image paths into `OgaImages::Load`, so the runtime boundary is ready for batch-style prompts. Quality and latency still need target-device testing for real multi-frame batches.
+The analyzer CLI supports repeated `--image` arguments. The current CUDA path has been verified with 30, 60, and 120 frames in one request through `tools/smoke_cuda_frame_batch.sh`.
+
+Linux CUDA frame-batch smoke:
+
+```bash
+./tools/smoke_cuda_frame_batch.sh --frame-count 120 --max-new-tokens 48
+```
+
+Required evidence includes `metadata.execution_provider=raw-ort-cuda`, `metadata.frame_count=120`, and `metadata.prefill_chunk_tokens=512`.
 
 ## Track Format
 
@@ -69,5 +77,5 @@ Example:
 
 - This is a CLI smoke harness, not a ZMQ service yet.
 - Request parsing is argument-based, not protocol-buffer or JSON-based.
-- The working model is still Qwen3-VL smoke-classified.
-- Qwen3.5-2B remains the target once multimodal GenAI export is solved.
+- The Qwen3.5 ONNX-OPT package remains prototype-classified until provenance/legal and target-device performance review are complete.
+- The direct ORT GenAI CUDA generator path still crashes; use the raw ONNX Runtime CUDA route for Qwen3.5 GPU frame batches.

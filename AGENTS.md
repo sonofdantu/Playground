@@ -35,6 +35,8 @@ Expected smoke evidence includes `backend=ort-genai`, `model_type=qwen3_5`, and 
 
 CUDA status: Qwen3.5 scene description now works on WSL2 through the C++ raw ONNX Runtime CUDA loop. `tools/smoke_ort_genai.sh --execution-provider cuda --config configs/qwen3.5-2b-onnxopt-cuda.ini` must return scene JSON with `metadata.execution_provider=raw-ort-cuda`.
 
+Frame-batch status: `tools/smoke_cuda_frame_batch.sh --frame-count 120 --max-new-tokens 48` must return analyzer JSON with `metadata.execution_provider=raw-ort-cuda`, `metadata.frame_count=120`, and `metadata.prefill_chunk_tokens=512`.
+
 The direct ORT GenAI CUDA generator path still crashes after `stage=generator`; do not regress the stable raw-ORT CUDA path while investigating that legacy failure. For CUDA debugging on another machine, run `tools/debug_cuda_ort_genai.sh` and inspect the generated `tmp/cuda-debug-*` logs before changing model/runtime code.
 
 When another AI needs to reproduce this on a new Linux box, send it to `docs/AI_CUDA_REPRODUCTION.md` first. That file contains the exact setup commands, expected output, C++ proof, CUDA proof, and failure triage.

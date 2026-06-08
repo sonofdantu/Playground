@@ -24,8 +24,10 @@ namespace {
 
 constexpr int64_t kBatchSize = 1;
 constexpr int64_t kHiddenSize = 2048;
+constexpr int64_t kPrefillChunkTokens = 512;
 constexpr int32_t kImStartTokenId = 248044;
 constexpr int32_t kImEndTokenId = 248046;
+constexpr int64_t kImageTokenId = 248056;
 
 std::string NormalizeProvider(std::string provider) {
   std::transform(provider.begin(), provider.end(), provider.begin(), [](unsigned char ch) {
@@ -142,6 +144,24 @@ std::vector<int64_t> MakePositionIds(int64_t start_position, int64_t length) {
     }
   }
   return position_ids;
+}
+
+size_t CountImageTokens(const std::vector<int64_t>& input_ids, size_t offset, size_t count) {
+  size_t image_tokens = 0;
+  for (size_t index = offset; index < offset + count; ++index) {
+    if (input_ids[index] == kImageTokenId) {
+      ++image_tokens;
+    }
+  }
+  return image_tokens;
+}
+
+std::vector<float> SliceImageFeatures(const std::vector<float>& image_features,
+                                      size_t feature_offset,
+                                      size_t feature_count) {
+  const auto begin = image_features.begin() + static_cast<std::ptrdiff_t>(feature_offset * kHiddenSize);
+  const auto end = begin + static_cast<std::ptrdiff_t>(feature_count * kHiddenSize);
+  return std::vector<float>(begin, end);
 }
 
 struct StateValue {
@@ -319,6 +339,9 @@ Result<SceneDescription> DescribeQwen35RawOrtCuda(const RuntimeConfig& config,
     if (image_features_shape.size() != 2 || image_features_shape[1] != kHiddenSize) {
       throw std::runtime_error("unexpected image_features shape");
     }
+    const auto image_feature_rows = static_cast<size_t>(image_features_shape[0]);
+    const auto* image_features_data = vision_outputs.front().GetTensorData<float>();
+    std::vector<float> image_features(image_features_data, image_features_data + image_feature_rows * static_cast<size_t>(kHiddenSize));
 
     const auto decoder_output_names = GetSessionOutputNames(decoder_session);
     const auto decoder_output_name_ptrs = ToCStrs(decoder_output_names);
@@ -328,30 +351,28 @@ Result<SceneDescription> DescribeQwen35RawOrtCuda(const RuntimeConfig& config,
     std::vector<int32_t> generated_tokens;
     generated_tokens.reserve(static_cast<size_t>(std::max(1, config.generation.max_new_tokens)));
 
-    int64_t total_length = static_cast<int64_t>(input_token_count);
-    std::vector<int64_t> next_input_ids = std::move(input_ids);
-    std::vector<int64_t> next_input_ids_shape = std::move(input_ids_shape);
     std::vector<float> empty_image_features_storage(1, 0.0F);
     std::vector<int64_t> empty_image_features_shape{0, kHiddenSize};
 
-    for (int step = 0; step < std::max(1, config.generation.max_new_tokens); ++step) {
+    auto run_decoder = [&](std::vector<int64_t>& token_ids,
+                           std::vector<int64_t>& token_shape,
+                           std::vector<float>& token_image_features,
+                           std::vector<int64_t>& token_image_features_shape,
+                           int64_t start_position,
+                           int64_t attention_length) -> int32_t {
       std::vector<const char*> embedding_input_names{"input_ids", "image_features"};
       std::vector<const char*> embedding_output_names{"inputs_embeds"};
       std::vector<Ort::Value> embedding_inputs;
       embedding_inputs.push_back(Ort::Value::CreateTensor<int64_t>(memory_info,
-                                                                    next_input_ids.data(),
-                                                                    next_input_ids.size(),
-                                                                    next_input_ids_shape.data(),
-                                                                    next_input_ids_shape.size()));
-      if (step == 0) {
-        embedding_inputs.push_back(std::move(vision_outputs.front()));
-      } else {
-        embedding_inputs.push_back(Ort::Value::CreateTensor<float>(memory_info,
-                                                                   empty_image_features_storage.data(),
-                                                                   0,
-                                                                   empty_image_features_shape.data(),
-                                                                   empty_image_features_shape.size()));
-      }
+                                                                    token_ids.data(),
+                                                                    token_ids.size(),
+                                                                    token_shape.data(),
+                                                                    token_shape.size()));
+      embedding_inputs.push_back(Ort::Value::CreateTensor<float>(memory_info,
+                                                                 token_image_features.data(),
+                                                                 token_image_features_shape[0] * token_image_features_shape[1],
+                                                                 token_image_features_shape.data(),
+                                                                 token_image_features_shape.size()));
       auto embedding_outputs = embedding_session.Run(Ort::RunOptions{nullptr},
                                                      embedding_input_names.data(),
                                                      embedding_inputs.data(),
@@ -367,9 +388,9 @@ Result<SceneDescription> DescribeQwen35RawOrtCuda(const RuntimeConfig& config,
         throw std::runtime_error("unexpected inputs_embeds shape");
       }
       const auto current_length = inputs_embeds_shape[1];
-      auto attention_mask = MakeAttentionMask(total_length);
-      auto position_ids = MakePositionIds(total_length - current_length, current_length);
-      std::vector<int64_t> attention_mask_shape{kBatchSize, total_length};
+      auto attention_mask = MakeAttentionMask(attention_length);
+      auto position_ids = MakePositionIds(start_position, current_length);
+      std::vector<int64_t> attention_mask_shape{kBatchSize, attention_length};
       std::vector<int64_t> position_ids_shape{3, kBatchSize, current_length};
 
       std::vector<std::string> decoder_input_names{"inputs_embeds", "attention_mask", "position_ids"};
@@ -403,7 +424,6 @@ Result<SceneDescription> DescribeQwen35RawOrtCuda(const RuntimeConfig& config,
       }
 
       const int32_t next_token = ArgmaxLastLogit(decoder_outputs.front());
-      generated_tokens.push_back(next_token);
 
       std::vector<StateValue> next_states;
       next_states.reserve(decoder_outputs.size() - 1);
@@ -414,13 +434,65 @@ Result<SceneDescription> DescribeQwen35RawOrtCuda(const RuntimeConfig& config,
         }
       }
       states = std::move(next_states);
+      return next_token;
+    };
 
-      total_length += 1;
-      next_input_ids = {next_token};
-      next_input_ids_shape = {kBatchSize, 1};
-      if (next_token == kImEndTokenId || next_token == kImStartTokenId) {
-        break;
+    const auto total_image_token_count = CountImageTokens(input_ids, 0, input_ids.size());
+    if (total_image_token_count != image_feature_rows) {
+      throw std::runtime_error("image token count does not match image feature rows");
+    }
+
+    int64_t total_length = 0;
+    size_t image_feature_offset = 0;
+    int32_t next_token = kImEndTokenId;
+    for (size_t token_offset = 0; token_offset < input_ids.size(); token_offset += static_cast<size_t>(kPrefillChunkTokens)) {
+      const auto chunk_token_count =
+          std::min(static_cast<size_t>(kPrefillChunkTokens), input_ids.size() - token_offset);
+      std::vector<int64_t> chunk_input_ids(input_ids.begin() + static_cast<std::ptrdiff_t>(token_offset),
+                                           input_ids.begin() + static_cast<std::ptrdiff_t>(token_offset + chunk_token_count));
+      std::vector<int64_t> chunk_input_ids_shape{kBatchSize, static_cast<int64_t>(chunk_token_count)};
+
+      const auto chunk_image_tokens = CountImageTokens(input_ids, token_offset, chunk_token_count);
+      auto chunk_image_features = SliceImageFeatures(image_features, image_feature_offset, chunk_image_tokens);
+      std::vector<int64_t> chunk_image_features_shape{static_cast<int64_t>(chunk_image_tokens), kHiddenSize};
+      if (chunk_image_features.empty()) {
+        chunk_image_features = empty_image_features_storage;
       }
+      image_feature_offset += chunk_image_tokens;
+
+      next_token = run_decoder(chunk_input_ids,
+                               chunk_input_ids_shape,
+                               chunk_image_features,
+                               chunk_image_features_shape,
+                               total_length,
+                               total_length + static_cast<int64_t>(chunk_token_count));
+      total_length += static_cast<int64_t>(chunk_token_count);
+    }
+
+    if (image_feature_offset != image_feature_rows) {
+      throw std::runtime_error("not all image features were consumed during prefill");
+    }
+
+    generated_tokens.push_back(next_token);
+
+    while (static_cast<int>(generated_tokens.size()) < std::max(1, config.generation.max_new_tokens) &&
+           next_token != kImEndTokenId && next_token != kImStartTokenId) {
+      total_length += 1;
+      std::vector<int64_t> next_input_ids{next_token};
+      std::vector<int64_t> next_input_ids_shape{kBatchSize, 1};
+      auto no_image_features = empty_image_features_storage;
+      auto no_image_features_shape = empty_image_features_shape;
+      next_token = run_decoder(next_input_ids,
+                               next_input_ids_shape,
+                               no_image_features,
+                               no_image_features_shape,
+                               total_length - 1,
+                               total_length);
+      generated_tokens.push_back(next_token);
+    }
+
+    if (next_token != kImEndTokenId && next_token != kImStartTokenId) {
+      total_length += 1;
     }
 
     auto decoded = processor.Decode(generated_tokens.data(), generated_tokens.size());
@@ -435,6 +507,7 @@ Result<SceneDescription> DescribeQwen35RawOrtCuda(const RuntimeConfig& config,
     description.metadata["generated_tokens"] = std::to_string(generated_tokens.size());
     description.metadata["execution_provider"] = "raw-ort-cuda";
     description.metadata["generation"] = "greedy";
+    description.metadata["prefill_chunk_tokens"] = std::to_string(kPrefillChunkTokens);
     return description;
   } catch (const std::exception& ex) {
     return Status(ErrorCode::kRuntimeError, std::string("Qwen3.5 raw ONNX Runtime CUDA inference failed: ") + ex.what());

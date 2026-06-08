@@ -2,6 +2,12 @@
 
 For the easiest fresh-clone Linux CUDA reproduction of the verified Qwen3.5 C++ GPU runtime, start with `docs/AI_CUDA_REPRODUCTION.md`.
 
+The verified Linux CUDA video-batch gate is:
+
+```bash
+./tools/smoke_cuda_frame_batch.sh --frame-count 120 --max-new-tokens 48
+```
+
 This guide recreates the local Qwen3.5 C++ scene-description result from a fresh clone. The repository intentionally does not include model weights, build outputs, dependency DLLs, Python environments, or Hugging Face cache files.
 
 ## What To Read First

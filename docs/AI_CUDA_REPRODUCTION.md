@@ -13,6 +13,7 @@ A successful run proves all of these are true:
 - The runtime executes the Qwen3.5 ONNX graphs through raw ONNX Runtime CUDA sessions.
 - The output JSON contains `metadata.execution_provider=raw-ort-cuda`.
 - The generated text describes `tmp/smoke.png`, normally mentioning a blue truck, red house, yellow sun, or green ground.
+- The analyzer path can ingest 30-120 frames in one request and return a CUDA-generated video summary.
 
 Known-good sentence on this machine:
 
@@ -63,6 +64,9 @@ Run these commands in order from the repository root:
   --execution-provider cuda \
   --config configs/qwen3.5-2b-onnxopt-cuda.ini \
   --max-new-tokens 32
+./tools/smoke_cuda_frame_batch.sh \
+  --frame-count 120 \
+  --max-new-tokens 48
 ```
 
 ## Expected Smoke Output
@@ -92,6 +96,41 @@ The exact sentence may vary slightly. The required checks are:
 ok=model type=qwen3_5 device=CUDA
 "execution_provider": "raw-ort-cuda"
 "model_type": "qwen3_5"
+```
+
+## 30-120 Frame Batch Smoke
+
+The video-frame gate generates synthetic PNG frames and feeds them all into one C++ analyzer request:
+
+```bash
+./tools/smoke_cuda_frame_batch.sh --frame-count 30 --max-new-tokens 32
+./tools/smoke_cuda_frame_batch.sh --frame-count 120 --max-new-tokens 48
+```
+
+Required evidence:
+
+```text
+frame batch smoke passed: frames=120
+```
+
+The JSON metadata must include:
+
+```json
+{
+  "metadata": {
+    "execution_provider": "raw-ort-cuda",
+    "frame_count": "120",
+    "image_count": "120",
+    "model_type": "qwen3_5",
+    "prefill_chunk_tokens": "512"
+  }
+}
+```
+
+Observed 120-frame output on the verified RTX 4070 Laptop WSL2 machine:
+
+```text
+The surveillance scene shows a static, pixelated environment featuring a red house with a dark roof, a blue pickup truck positioned on a gray road, and a yellow sun in the upper right corner.
 ```
 
 ## Direct C++ Command
@@ -183,6 +222,8 @@ For Qwen3.5 with `execution_provider=cuda`, `scene_describer` routes into `src/b
 - `decoder_model_merged_*` through ONNX Runtime CUDA
 
 ORT GenAI is still used for Qwen-compatible image preprocessing, prompt tokenization, and token decoding.
+
+For 30-120 frame requests, the raw CUDA path uses chunked prefill (`prefill_chunk_tokens=512`) so the decoder does not prefill a very long video prompt in one giant sequence. The default model-preparation profile is `--processor-profile video`, which uses 224px frames to keep 120-frame batches inside an 8GB laptop GPU.
 
 ## If It Fails
 

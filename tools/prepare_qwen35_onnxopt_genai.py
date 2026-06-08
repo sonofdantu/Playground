@@ -105,6 +105,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", default="models/qwen3.5-2b-onnxopt-q4f16")
     parser.add_argument("--cache-dir", default=".cache/huggingface")
     parser.add_argument("--variant", choices=sorted(VARIANTS), default="q4f16")
+    parser.add_argument(
+        "--processor-profile",
+        choices=["video", "image"],
+        default="video",
+        help="video uses 224px frames for 30-120 frame CUDA batches; image keeps the older 448px single-image profile.",
+    )
     parser.add_argument("--force", action="store_true", help="Remove an existing output directory first.")
     parser.add_argument("--metadata-only", action="store_true", help="Download only small configs and ONNX graph headers.")
     parser.add_argument("--skip-provenance", action="store_true")
@@ -273,7 +279,28 @@ def patch_tokenizer_json(output_dir: Path) -> None:
     print(f"patched tokenizer.json pre-tokenizer regex for ORT GenAI: {path}")
 
 
-def write_processor_config(output_dir: Path) -> None:
+def write_processor_config(output_dir: Path, profile: str) -> None:
+    if profile == "video":
+        resize_attrs = {
+            "width": 224,
+            "height": 224,
+            "smart_resize": 1,
+            "min_pixels": 50176,
+            "max_pixels": 50176,
+            "patch_size": 16,
+            "merge_size": 2,
+        }
+    else:
+        resize_attrs = {
+            "width": 448,
+            "height": 448,
+            "smart_resize": 1,
+            "min_pixels": 65536,
+            "max_pixels": 16777216,
+            "patch_size": 16,
+            "merge_size": 2,
+        }
+
     processor_config = {
         "processor": {
             "name": "qwen3_5_image_processor",
@@ -290,15 +317,7 @@ def write_processor_config(output_dir: Path) -> None:
                     "operation": {
                         "name": "resize",
                         "type": "Resize",
-                        "attrs": {
-                            "width": 448,
-                            "height": 448,
-                            "smart_resize": 1,
-                            "min_pixels": 65536,
-                            "max_pixels": 16777216,
-                            "patch_size": 16,
-                            "merge_size": 2,
-                        },
+                        "attrs": resize_attrs,
                     }
                 },
                 {
@@ -456,7 +475,7 @@ def main() -> None:
     patch_embedding_graph(output_dir / "onnx" / f"{variant_files['embedding']}.onnx")
     patch_tokenizer_config(output_dir)
     patch_tokenizer_json(output_dir)
-    write_processor_config(output_dir)
+    write_processor_config(output_dir, args.processor_profile)
     write_genai_config(output_dir, variant_files)
 
     if not args.skip_provenance:
@@ -474,6 +493,7 @@ def main() -> None:
                 "Decoder recurrent I/O names patched for ORT GenAI recurrent-state discovery.",
                 "Decoder GroupQueryAttention optional attention_bias inputs removed for ORT CUDA compatibility on no-padding prompts.",
                 "Embedding graph patched to scatter image_features into image token positions.",
+                f"Processor profile: {args.processor_profile}.",
             ],
         )
         print(f"wrote {manifest}")

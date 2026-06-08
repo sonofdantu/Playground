@@ -72,6 +72,7 @@ Linux CUDA smoke path:
   --execution-provider cuda \
   --config configs/qwen3.5-2b-onnxopt-cuda.ini \
   --max-new-tokens 32
+./tools/smoke_cuda_frame_batch.sh --frame-count 120 --max-new-tokens 48
 ```
 
 See [docs\QUICKSTART.md](docs/QUICKSTART.md) for full Windows and Linux startup paths.

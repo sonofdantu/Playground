@@ -69,6 +69,8 @@ Verified so far:
 - Added a C++ raw ONNX Runtime CUDA generation loop for Qwen3.5. ORT GenAI still provides preprocessing/tokenization/decoding, but `vision_encoder_*`, `embed_tokens_*`, and `decoder_model_merged_*` execute through raw ORT CUDA sessions.
 - `./tools/smoke_ort_genai.sh --execution-provider cuda --config configs/qwen3.5-2b-onnxopt-cuda.ini --max-new-tokens 32` passed and returned `A blue truck drives past a red house under a yellow sun.` with `metadata.execution_provider=raw-ort-cuda`.
 - Added `tools/debug_cuda_ort_genai.sh` to collect CUDA provider, library-resolution, model-stage, legacy token-stage, raw CUDA CLI, `dmesg`, and optional `gdb` evidence on Linux.
+- Added chunked raw-ORT CUDA prefill for long multimodal prompts and a video processor profile that keeps 30-120 frame requests inside the tested 8GB RTX 4070 Laptop GPU envelope.
+- Added `tools/make_test_frames.py` and `tools/smoke_cuda_frame_batch.sh`. Verified `./tools/smoke_cuda_frame_batch.sh --frame-count 120 --max-new-tokens 48` returns analyzer JSON with `metadata.execution_provider=raw-ort-cuda`, `metadata.frame_count=120`, and `metadata.prefill_chunk_tokens=512`.
 
 ## Key Decisions
 
@@ -91,7 +93,7 @@ Verified so far:
 
 ## Next Steps
 
-1. Benchmark the raw ONNX Runtime CUDA Qwen3.5 loop on the target accelerator.
+1. Benchmark the raw ONNX Runtime CUDA Qwen3.5 loop on target video frame rates and decide production frame sampling policy.
 2. Decide whether to productionize the ONNX-OPT preparation path or pursue an internal complete Qwen3.5 export.
 3. Add ZMQ protocol compatibility for analyzer requests/results if needed.
 4. Add runtime image decoding policy for non-ORT preprocessing paths.

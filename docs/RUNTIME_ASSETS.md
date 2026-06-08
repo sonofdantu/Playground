@@ -172,6 +172,8 @@ Important: `models\qwen3.5-2b` is not the working scene-description package. Tha
 
 For CUDA, `tools/prepare_qwen35_onnxopt_genai.py` also removes the optional decoder `GroupQueryAttention` `attention_bias` input. ORT CUDA 1.25/1.26 rejects that optional input, and the project's single-image no-padding prompt does not need it.
 
+The default processor profile is `video`, which uses 224px frames so 30-120 frame CUDA batches fit on the tested 8GB RTX 4070 Laptop GPU. Use `--processor-profile image` when preparing the model only for higher-detail single-image experiments.
+
 ## ORT-Enabled Build Path
 
 Build with:

@@ -8,7 +8,7 @@ The stable CUDA route is a hybrid C++ runtime:
 
 - ORT GenAI loads the model package on CPU only for Qwen-compatible image preprocessing, prompt tokenization, and token decoding.
 - Raw ONNX Runtime C++ sessions run `vision_encoder_*`, `embed_tokens_*`, and `decoder_model_merged_*` with `CUDAExecutionProvider`.
-- The manual generation loop owns Qwen3.5 recurrent state tensors and uses greedy decoding.
+- The manual generation loop owns Qwen3.5 recurrent state tensors, uses chunked prefill for long frame batches, and uses greedy decoding.
 
 This avoids the current ORT GenAI CUDA generator crash while keeping model execution in ONNX Runtime CUDA.
 
@@ -66,6 +66,36 @@ LD_LIBRARY_PATH="$(./tools/cuda_library_path.sh):$PWD/build:${LD_LIBRARY_PATH:-}
   --json
 ```
 
+## 30-120 Frame Video Smoke
+
+Generate synthetic frames and summarize them in one C++/CUDA analyzer request:
+
+```bash
+./tools/smoke_cuda_frame_batch.sh --frame-count 30 --max-new-tokens 32
+./tools/smoke_cuda_frame_batch.sh --frame-count 120 --max-new-tokens 48
+```
+
+Verified 120-frame evidence on this machine:
+
+```text
+frame batch smoke passed: frames=120
+```
+
+```json
+{
+  "summary": "The surveillance scene shows a static, pixelated environment featuring a red house with a dark roof, a blue pickup truck positioned on a gray road, and a yellow sun in the upper right corner.",
+  "metadata": {
+    "execution_provider": "raw-ort-cuda",
+    "frame_count": "120",
+    "image_count": "120",
+    "model_type": "qwen3_5",
+    "prefill_chunk_tokens": "512"
+  }
+}
+```
+
+The default Qwen3.5 preparation path uses `--processor-profile video`, which creates a 224px processor profile. That keeps 120-frame requests inside the tested 8GB RTX 4070 Laptop GPU envelope. Use `--processor-profile image` only when high-detail single-image inference matters more than long frame batches.
+
 ## Why Raw ORT CUDA Exists
 
 The original CUDA attempt used ORT GenAI's `OgaGenerator` directly. It reached CUDA model load and image preprocessing, but crashed before token generation completed.
@@ -79,6 +109,8 @@ GroupQueryAttention: attention_bias is not supported in GroupQueryAttention cuda
 For this project's single-image, no-padding prompt, the exported `GroupQueryAttention` bias is all zeros. `tools/prepare_qwen35_onnxopt_genai.py` now removes that optional bias input from the generated local model package so the CUDA kernel can run.
 
 The direct ORT GenAI CUDA generator path still crashes in this environment after `stage=generator`; do not use it as the production CUDA path. Use `scene_describer` with `execution_provider=cuda`, which routes Qwen3.5 through the raw ONNX Runtime CUDA loop.
+
+For long prompts, the raw CUDA loop splits prefill into 512-token chunks and feeds only the image-feature rows needed by each chunk. This is required for 30-120 frame requests because all-at-once prefill can saturate an 8GB GPU.
 
 ## Debug Runbook
 
