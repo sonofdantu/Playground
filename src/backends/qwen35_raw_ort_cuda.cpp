@@ -295,22 +295,67 @@ bool ShouldUseQwen35RawOrtCuda(const RuntimeConfig& config, const std::string& m
   return NormalizeProvider(config.execution_provider) == "cuda" && model_type == "qwen3_5";
 }
 
-Result<SceneDescription> DescribeQwen35RawOrtCuda(const RuntimeConfig& config,
-                                                  OgaMultiModalProcessor& processor,
-                                                  OgaNamedTensors& inputs,
-                                                  const std::string& model_type,
-                                                  size_t input_token_count,
-                                                  size_t image_count) {
+struct Qwen35RawOrtCudaRunner::Impl {
+  explicit Impl(RuntimeConfig input_config)
+      : config(std::move(input_config)),
+        env(ORT_LOGGING_LEVEL_WARNING, "scene-describer-qwen35-raw-ort-cuda"),
+        session_options(MakeCudaSessionOptions()),
+        model_dir(config.model_dir),
+        vision_model_path(FindModelFile(model_dir, "vision_encoder_")),
+        embedding_model_path(FindModelFile(model_dir, "embed_tokens_")),
+        decoder_model_path(FindModelFile(model_dir, "decoder_model_merged_")),
+        vision_session(env, vision_model_path.c_str(), session_options),
+        embedding_session(env, embedding_model_path.c_str(), session_options),
+        decoder_session(env, decoder_model_path.c_str(), session_options) {
+    decoder_output_names = GetSessionOutputNames(decoder_session);
+    decoder_output_name_ptrs = ToCStrs(decoder_output_names);
+    output_to_input_state = MakeOutputToInputStateMap(decoder_output_names);
+  }
+
+  Result<SceneDescription> Describe(OgaMultiModalProcessor& processor,
+                                    OgaNamedTensors& inputs,
+                                    const std::string& model_type,
+                                    size_t input_token_count,
+                                    size_t image_count);
+
+  RuntimeConfig config;
+  Ort::Env env;
+  Ort::SessionOptions session_options;
+  std::filesystem::path model_dir;
+  std::filesystem::path vision_model_path;
+  std::filesystem::path embedding_model_path;
+  std::filesystem::path decoder_model_path;
+  Ort::Session vision_session;
+  Ort::Session embedding_session;
+  Ort::Session decoder_session;
+  std::vector<std::string> decoder_output_names;
+  std::vector<const char*> decoder_output_name_ptrs;
+  std::unordered_map<std::string, std::string> output_to_input_state;
+};
+
+Qwen35RawOrtCudaRunner::Qwen35RawOrtCudaRunner(RuntimeConfig config)
+    : impl_(std::make_unique<Impl>(std::move(config))) {}
+
+Qwen35RawOrtCudaRunner::~Qwen35RawOrtCudaRunner() = default;
+Qwen35RawOrtCudaRunner::Qwen35RawOrtCudaRunner(Qwen35RawOrtCudaRunner&&) noexcept = default;
+Qwen35RawOrtCudaRunner& Qwen35RawOrtCudaRunner::operator=(Qwen35RawOrtCudaRunner&&) noexcept = default;
+
+Result<SceneDescription> Qwen35RawOrtCudaRunner::Describe(OgaMultiModalProcessor& processor,
+                                                          OgaNamedTensors& inputs,
+                                                          const std::string& model_type,
+                                                          size_t input_token_count,
+                                                          size_t image_count) {
+  return impl_->Describe(processor, inputs, model_type, input_token_count, image_count);
+}
+
+Result<SceneDescription> Qwen35RawOrtCudaRunner::Impl::Describe(OgaMultiModalProcessor& processor,
+                                                                OgaNamedTensors& inputs,
+                                                                const std::string& model_type,
+                                                                size_t input_token_count,
+                                                                size_t image_count) {
   try {
-    Ort::Env env(ORT_LOGGING_LEVEL_WARNING, "scene-describer-qwen35-raw-ort-cuda");
-    auto session_options = MakeCudaSessionOptions();
     Ort::MemoryInfo memory_info = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
     Ort::AllocatorWithDefaultOptions allocator;
-
-    const std::filesystem::path model_dir(config.model_dir);
-    Ort::Session vision_session(env, FindModelFile(model_dir, "vision_encoder_").c_str(), session_options);
-    Ort::Session embedding_session(env, FindModelFile(model_dir, "embed_tokens_").c_str(), session_options);
-    Ort::Session decoder_session(env, FindModelFile(model_dir, "decoder_model_merged_").c_str(), session_options);
 
     std::vector<int64_t> pixel_shape;
     auto pixel_values = CopyOgaTensorData<float>(inputs, "pixel_values", pixel_shape);
@@ -342,10 +387,6 @@ Result<SceneDescription> DescribeQwen35RawOrtCuda(const RuntimeConfig& config,
     const auto image_feature_rows = static_cast<size_t>(image_features_shape[0]);
     const auto* image_features_data = vision_outputs.front().GetTensorData<float>();
     std::vector<float> image_features(image_features_data, image_features_data + image_feature_rows * static_cast<size_t>(kHiddenSize));
-
-    const auto decoder_output_names = GetSessionOutputNames(decoder_session);
-    const auto decoder_output_name_ptrs = ToCStrs(decoder_output_names);
-    const auto output_to_input_state = MakeOutputToInputStateMap(decoder_output_names);
 
     std::vector<StateValue> states = MakeInitialDecoderStates(decoder_session, allocator);
     std::vector<int32_t> generated_tokens;

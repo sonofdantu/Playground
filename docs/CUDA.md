@@ -20,7 +20,8 @@ This avoids the current ORT GenAI CUDA generator crash while keeping model execu
 ./tools/fetch_runtime_deps.sh --cuda
 ./.venv/bin/python tools/prepare_qwen35_onnxopt_genai.py \
   --output-dir models/qwen3.5-2b-onnxopt-q4f16 \
-  --variant q4f16
+  --variant q4f16 \
+  --processor-profile security
 ./tools/build.sh --clean --test --ort-genai \
   --ort-genai-root "$PWD/.deps/onnxruntime-genai-0.13.1-linux-x64-cuda/onnxruntime-genai-0.13.1-linux-x64-cuda" \
   --ort-runtime-root "$PWD/.deps/onnxruntime-linux-x64-gpu-1.25.1/onnxruntime-linux-x64-gpu-1.25.1"
@@ -66,35 +67,64 @@ LD_LIBRARY_PATH="$(./tools/cuda_library_path.sh):$PWD/build:${LD_LIBRARY_PATH:-}
   --json
 ```
 
-## 30-120 Frame Video Smoke
+## 1080p Security Frame Batch
 
-Generate synthetic frames and summarize them in one C++/CUDA analyzer request:
+Generate synthetic 1920x1080 security frames, attach sampled person/vehicle tracks, append high-resolution detail crops, and summarize them in one C++/CUDA analyzer request:
 
 ```bash
-./tools/smoke_cuda_frame_batch.sh --frame-count 30 --max-new-tokens 32
-./tools/smoke_cuda_frame_batch.sh --frame-count 120 --max-new-tokens 48
+./tools/smoke_cuda_frame_batch.sh
 ```
 
-Verified 120-frame evidence on this machine:
+Required evidence:
 
 ```text
-frame batch smoke passed: frames=120
+frame batch smoke passed: frames=30
 ```
 
 ```json
 {
-  "summary": "The surveillance scene shows a static, pixelated environment featuring a red house with a dark roof, a blue pickup truck positioned on a gray road, and a yellow sun in the upper right corner.",
+  "summary": "The scene depicts a static suburban setting with a red house, a garage, and a blue pickup truck parked on the left. A person wearing a yellow shirt and dark pants walks from left to right across the asphalt road. The person carries a small, rectangular object in their right hand. A black drone hovers in the upper right portion of",
   "metadata": {
+    "detail_image_count": "2",
     "execution_provider": "raw-ort-cuda",
-    "frame_count": "120",
-    "image_count": "120",
+    "frame_count": "30",
+    "image_count": "32",
     "model_type": "qwen3_5",
     "prefill_chunk_tokens": "512"
   }
 }
 ```
 
-The default Qwen3.5 preparation path uses `--processor-profile video`, which creates a 224px processor profile. That keeps 120-frame requests inside the tested 8GB RTX 4070 Laptop GPU envelope. Use `--processor-profile image` only when high-detail single-image inference matters more than long frame batches.
+Measure the resident-runtime latency gate:
+
+```bash
+./tools/benchmark_cuda_frame_batch.sh --analyzer-prompt
+```
+
+Target warmed evidence on RTX4000-class hardware:
+
+```text
+CUDA frame benchmark passed: frames=30 median_ms=<4000
+```
+
+The benchmark constructs the C++ backend once, runs one warmup request, then times repeated 30-frame summaries. This excludes one-time model/session startup and matches the intended resident video-service behavior.
+
+Processor profiles:
+
+- `security` is the default 224px wide-frame profile paired with high-resolution detail crops for 30-frame 1920x1080 JPEG quality-85 summaries and the 4-second RTX4000 target.
+- `video` is the same 224px profile when running longer low-detail frame batches without detail crops.
+- `detail` is the 448px wide-frame profile for quality testing; it is not currently a 4-second profile on the tested laptop GPU.
+- `image` is the legacy high-detail single-image profile.
+
+Measured tradeoffs on the verified 8GB RTX 4070 Laptop GPU:
+
+- 30 JPEG quality-85 frames, `security`/224px plus two JPEG quality-85 detail crops, analyzer prompt, 63 generated tokens: median `5162.286`-`7468.595` ms with `--no-target` depending on laptop/WSL state.
+- 30 frames, 336px plus two detail crops, analyzer prompt, 64 generated tokens: median `7124.846` ms.
+- 60 frames, 224px without detail crops, concise prompt, 24 generated tokens: median `4100.184` ms.
+- 30 frames, 448px wide-only, concise prompt, 24 generated tokens: median `16636.760` ms.
+- 60 frames at 336px wide-frame detail: failed on the 8GB GPU with ORT arena allocation pressure.
+
+The critical accuracy point is that small objects are not expected to survive the compressed whole-frame view. They need either detector/track metadata or high-resolution detail crops. For 448px wide-frame detail at a 4-second cadence or 60 frames above the 224px profile, expect a materially faster desktop GPU and more than 8GB VRAM; 16GB+ VRAM is the next practical test tier. A6000 should be faster than RTX4000, and Thor-class targets should be materially faster.
 
 ## Why Raw ORT CUDA Exists
 
@@ -110,7 +140,7 @@ For this project's single-image, no-padding prompt, the exported `GroupQueryAtte
 
 The direct ORT GenAI CUDA generator path still crashes in this environment after `stage=generator`; do not use it as the production CUDA path. Use `scene_describer` with `execution_provider=cuda`, which routes Qwen3.5 through the raw ONNX Runtime CUDA loop.
 
-For long prompts, the raw CUDA loop splits prefill into 512-token chunks and feeds only the image-feature rows needed by each chunk. This is required for 30-120 frame requests because all-at-once prefill can saturate an 8GB GPU.
+For long prompts, the raw CUDA loop splits prefill into 512-token chunks and feeds only the image-feature rows needed by each chunk. This is required for 30-60 frame requests because all-at-once prefill can saturate an 8GB GPU.
 
 ## Debug Runbook
 

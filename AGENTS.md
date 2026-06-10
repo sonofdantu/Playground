@@ -35,7 +35,9 @@ Expected smoke evidence includes `backend=ort-genai`, `model_type=qwen3_5`, and 
 
 CUDA status: Qwen3.5 scene description now works on WSL2 through the C++ raw ONNX Runtime CUDA loop. `tools/smoke_ort_genai.sh --execution-provider cuda --config configs/qwen3.5-2b-onnxopt-cuda.ini` must return scene JSON with `metadata.execution_provider=raw-ort-cuda`.
 
-Frame-batch status: `tools/smoke_cuda_frame_batch.sh --frame-count 120 --max-new-tokens 48` must return analyzer JSON with `metadata.execution_provider=raw-ort-cuda`, `metadata.frame_count=120`, and `metadata.prefill_chunk_tokens=512`.
+Frame-batch status: `tools/smoke_cuda_frame_batch.sh` generates 30 synthetic 1920x1080 JPEG frames at quality 85, attaches sampled person/vehicle tracks, appends two high-resolution JPEG detail crops, and must return analyzer JSON with `metadata.execution_provider=raw-ort-cuda`, `metadata.frame_count=30`, `metadata.detail_image_count=2`, `metadata.image_count=32`, and `metadata.prefill_chunk_tokens=512`. The default smoke validates that the summary mentions both the small held object and the drone.
+
+Latency target: `tools/benchmark_cuda_frame_batch.sh --analyzer-prompt` keeps the C++ backend/model resident and enforces a `4000` ms warmed median target for RTX4000-class hardware. The verified RTX 4070 Laptop WSL2 machine is slower and should use `--no-target` for local observation; observed JPEG-85 medians there range from `5162.286` to `7468.595` ms depending on laptop/WSL state. The default `--processor-profile security` uses a 224px wide-frame budget plus high-resolution detail crops so small-object evidence is not dependent on the compressed whole frame. A6000 should be faster than RTX4000; Thor-class targets should be materially faster.
 
 The direct ORT GenAI CUDA generator path still crashes after `stage=generator`; do not regress the stable raw-ORT CUDA path while investigating that legacy failure. For CUDA debugging on another machine, run `tools/debug_cuda_ort_genai.sh` and inspect the generated `tmp/cuda-debug-*` logs before changing model/runtime code.
 

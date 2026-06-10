@@ -1,6 +1,6 @@
 # Project State
 
-Last updated: 2026-05-26
+Last updated: 2026-06-08
 
 ## Goal
 
@@ -69,8 +69,11 @@ Verified so far:
 - Added a C++ raw ONNX Runtime CUDA generation loop for Qwen3.5. ORT GenAI still provides preprocessing/tokenization/decoding, but `vision_encoder_*`, `embed_tokens_*`, and `decoder_model_merged_*` execute through raw ORT CUDA sessions.
 - `./tools/smoke_ort_genai.sh --execution-provider cuda --config configs/qwen3.5-2b-onnxopt-cuda.ini --max-new-tokens 32` passed and returned `A blue truck drives past a red house under a yellow sun.` with `metadata.execution_provider=raw-ort-cuda`.
 - Added `tools/debug_cuda_ort_genai.sh` to collect CUDA provider, library-resolution, model-stage, legacy token-stage, raw CUDA CLI, `dmesg`, and optional `gdb` evidence on Linux.
-- Added chunked raw-ORT CUDA prefill for long multimodal prompts and a video processor profile that keeps 30-120 frame requests inside the tested 8GB RTX 4070 Laptop GPU envelope.
-- Added `tools/make_test_frames.py` and `tools/smoke_cuda_frame_batch.sh`. Verified `./tools/smoke_cuda_frame_batch.sh --frame-count 120 --max-new-tokens 48` returns analyzer JSON with `metadata.execution_provider=raw-ort-cuda`, `metadata.frame_count=120`, and `metadata.prefill_chunk_tokens=512`.
+- Added persistent raw-ORT CUDA sessions for Qwen3.5 so repeated in-process summaries reuse the loaded `vision_encoder_*`, `embed_tokens_*`, and `decoder_model_merged_*` CUDA sessions.
+- Added chunked raw-ORT CUDA prefill for long multimodal prompts and fixed-area processor profiles. `security` is now the default 224px wide-frame profile paired with high-resolution detail crops for small-object accuracy; `detail` is the 448px quality profile.
+- Added `tools/make_test_frames.py`, `tools/make_detail_crops.py`, `tools/smoke_cuda_frame_batch.sh`, and `tools/benchmark_cuda_frame_batch.sh`. Verified `./tools/smoke_cuda_frame_batch.sh` generates 30 1920x1080 JPEG quality-85 frames plus two JPEG quality-85 detail crops, returns analyzer JSON with `metadata.execution_provider=raw-ort-cuda`, `metadata.frame_count=30`, `metadata.detail_image_count=2`, `metadata.image_count=32`, sampled track metadata, and a summary that mentions both a person carrying a small rectangular object and a drone in the sky.
+- `./tools/benchmark_cuda_frame_batch.sh --analyzer-prompt` now enforces the target spec: warmed 30-frame median below `4000` ms on RTX4000-class hardware. The current RTX 4070 Laptop WSL2 machine is slower; observed JPEG-85 no-target medians range from `5162.286` to `7468.595` ms, with `input_tokens=3995` and `generated_tokens=63`.
+- Measured profile tradeoffs on the same 8GB laptop GPU: 30 JPEG-85 frames at 224px plus two detail crops median `5162.286`-`7468.595` ms with the analyzer prompt depending on laptop/WSL state; 30 frames at 336px plus two detail crops median `7124.846` ms with 64 generated tokens; 30 frames at 448px wide-only median `16636.760` ms; 60 frames at 336px failed with ORT arena allocation pressure. Target expectation is under `4000` ms on RTX4000-class hardware, faster on A6000, and materially faster on Thor-class targets.
 
 ## Key Decisions
 
@@ -84,7 +87,7 @@ Verified so far:
 
 ## Known Blockers
 
-- PNG/JPEG decoding is not added yet. Current bootstrap loader supports binary PPM/PGM only.
+- The shared bootstrap image loader still supports only binary PPM/PGM for mock/core tests. Real Qwen3.5 runtime image loading goes through ORT GenAI preprocessing and supports the JPEG frame-batch path used by `tools/smoke_cuda_frame_batch.sh`.
 - The direct exported Qwen3.5 package at `models\qwen3.5-2b` is decoder-only. It is useful evidence, not a usable scene-description runtime package.
 - The working Qwen3.5 ONNX-OPT package at `models\qwen3.5-2b-onnxopt-q4f16` is still a prototype because it depends on local graph/package patches and needs provenance/legal and target-device review.
 - The onnx-community Qwen3-VL ONNX package is missing explicit license metadata. Use it for smoke testing only until legal provenance is resolved.
@@ -93,7 +96,7 @@ Verified so far:
 
 ## Next Steps
 
-1. Benchmark the raw ONNX Runtime CUDA Qwen3.5 loop on target video frame rates and decide production frame sampling policy.
+1. Convert the warmed benchmark path into a resident video service loop if a CLI-only analyzer is not enough for the target deployment.
 2. Decide whether to productionize the ONNX-OPT preparation path or pursue an internal complete Qwen3.5 export.
 3. Add ZMQ protocol compatibility for analyzer requests/results if needed.
 4. Add runtime image decoding policy for non-ORT preprocessing paths.

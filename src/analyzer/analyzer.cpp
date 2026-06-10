@@ -61,13 +61,19 @@ std::string RenderFrames(const AnalyzerRequest& request) {
   std::ostringstream output;
   for (std::size_t frame_index = 0; frame_index < request.frames.size(); ++frame_index) {
     const auto& frame = request.frames[frame_index];
-    output << "Frame " << frame_index;
+    output << (frame.detail_view ? "Detail view " : "Frame ") << frame_index;
     if (!frame.frame_id.empty()) {
       output << " (" << frame.frame_id << ")";
     }
     output << ":\n";
     output << "- image_path: " << frame.image_path << "\n";
     output << "- timestamp_ms: " << frame.timestamp_ms << "\n";
+    if (frame.detail_view) {
+      output << "- view_type: high-resolution detail crop\n";
+    }
+    if (!frame.note.empty()) {
+      output << "- note: " << frame.note << "\n";
+    }
     if (frame.tracks.empty()) {
       output << "- tracks: none provided\n";
     } else {
@@ -154,7 +160,8 @@ PromptTemplates DefaultPromptTemplates() {
       "Do not identify people, infer intent, or add details not supported by the frames.";
   templates.task_rules =
       "Return a concise operational summary. Mention visible objects, scene changes, track continuity, and notable "
-      "actions. If track metadata conflicts with image evidence, say that the track metadata is uncertain.";
+      "actions. Inspect high-resolution detail crops for small, held, or airborne objects. If track metadata conflicts "
+      "with image evidence, say that the track metadata is uncertain.";
   templates.local_batch = "Current batch:\n{frames}";
   templates.history_context = "Recent context:\n{history}";
   return templates;

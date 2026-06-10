@@ -30,7 +30,9 @@ struct TrackMetadata {
 struct AnalyzerFrame {
   std::string frame_id;
   std::string image_path;
+  std::string note;
   std::int64_t timestamp_ms{0};
+  bool detail_view{false};
   std::vector<TrackMetadata> tracks;
 };
 

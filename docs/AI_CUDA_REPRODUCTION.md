@@ -13,7 +13,9 @@ A successful run proves all of these are true:
 - The runtime executes the Qwen3.5 ONNX graphs through raw ONNX Runtime CUDA sessions.
 - The output JSON contains `metadata.execution_provider=raw-ort-cuda`.
 - The generated text describes `tmp/smoke.png`, normally mentioning a blue truck, red house, yellow sun, or green ground.
-- The analyzer path can ingest 30-120 frames in one request and return a CUDA-generated video summary.
+- The analyzer path can ingest 30 generated 1920x1080 security frames in one request and return a CUDA-generated video summary.
+- The analyzer path can add high-resolution detail crops so small held objects and small airborne objects are visible to the model.
+- The resident C++ benchmark can summarize that 30-frame JPEG quality-85 window with warmed median latency below 4 seconds on RTX4000-class hardware.
 
 Known-good sentence on this machine:
 
@@ -43,7 +45,7 @@ Before setup, verify the machine has NVIDIA GPU visibility:
 nvidia-smi || /usr/lib/wsl/lib/nvidia-smi
 ```
 
-Expected: the command prints an NVIDIA GPU and driver. On the verified WSL2 machine, the GPU is an RTX 4070 Laptop GPU.
+Expected: the command prints an NVIDIA GPU and driver. The target gate is RTX4000-class hardware or better. The verified WSL2 development machine has an RTX 4070 Laptop GPU and is slower than the RTX4000 target.
 
 ## One-Shot Reproduction
 
@@ -55,7 +57,8 @@ Run these commands in order from the repository root:
 ./tools/fetch_runtime_deps.sh --cuda
 ./.venv/bin/python tools/prepare_qwen35_onnxopt_genai.py \
   --output-dir models/qwen3.5-2b-onnxopt-q4f16 \
-  --variant q4f16
+  --variant q4f16 \
+  --processor-profile security
 ./tools/build.sh --clean --test --ort-genai \
   --ort-genai-root "$PWD/.deps/onnxruntime-genai-0.13.1-linux-x64-cuda/onnxruntime-genai-0.13.1-linux-x64-cuda" \
   --ort-runtime-root "$PWD/.deps/onnxruntime-linux-x64-gpu-1.25.1/onnxruntime-linux-x64-gpu-1.25.1"
@@ -64,9 +67,8 @@ Run these commands in order from the repository root:
   --execution-provider cuda \
   --config configs/qwen3.5-2b-onnxopt-cuda.ini \
   --max-new-tokens 32
-./tools/smoke_cuda_frame_batch.sh \
-  --frame-count 120 \
-  --max-new-tokens 48
+./tools/smoke_cuda_frame_batch.sh
+./tools/benchmark_cuda_frame_batch.sh --analyzer-prompt
 ```
 
 ## Expected Smoke Output
@@ -98,19 +100,18 @@ ok=model type=qwen3_5 device=CUDA
 "model_type": "qwen3_5"
 ```
 
-## 30-120 Frame Batch Smoke
+## 1080p Security Frame Batch
 
-The video-frame gate generates synthetic PNG frames and feeds them all into one C++ analyzer request:
+The video-frame gate generates 30 synthetic 1920x1080 JPEG frames at quality 85, attaches sampled person/vehicle track metadata, adds two high-resolution JPEG quality-85 detail crops, and feeds them into one C++ analyzer request:
 
 ```bash
-./tools/smoke_cuda_frame_batch.sh --frame-count 30 --max-new-tokens 32
-./tools/smoke_cuda_frame_batch.sh --frame-count 120 --max-new-tokens 48
+./tools/smoke_cuda_frame_batch.sh
 ```
 
 Required evidence:
 
 ```text
-frame batch smoke passed: frames=120
+frame batch smoke passed: frames=30
 ```
 
 The JSON metadata must include:
@@ -119,19 +120,34 @@ The JSON metadata must include:
 {
   "metadata": {
     "execution_provider": "raw-ort-cuda",
-    "frame_count": "120",
-    "image_count": "120",
+    "frame_count": "30",
+    "detail_image_count": "2",
+    "image_count": "32",
     "model_type": "qwen3_5",
     "prefill_chunk_tokens": "512"
   }
 }
 ```
 
-Observed 120-frame output on the verified RTX 4070 Laptop WSL2 machine:
+Observed 30-frame output on the verified RTX 4070 Laptop WSL2 machine:
 
 ```text
-The surveillance scene shows a static, pixelated environment featuring a red house with a dark roof, a blue pickup truck positioned on a gray road, and a yellow sun in the upper right corner.
+The scene depicts a static suburban setting with a red house, a garage, and a blue pickup truck parked on the left. A person wearing a yellow shirt and dark pants walks from left to right across the asphalt road. The person carries a small, rectangular object in their right hand. A black drone hovers in the upper right portion of
 ```
+
+The warmed resident-runtime latency gate is:
+
+```bash
+./tools/benchmark_cuda_frame_batch.sh --analyzer-prompt
+```
+
+Required evidence on RTX4000-class hardware:
+
+```text
+CUDA frame benchmark passed: frames=30 median_ms=<4000
+```
+
+On the verified RTX 4070 Laptop WSL2 development machine, run the same benchmark with `--no-target`; observed JPEG-85 medians range from `5162.286` to `7468.595` ms depending on laptop/WSL state.
 
 ## Direct C++ Command
 
@@ -223,7 +239,17 @@ For Qwen3.5 with `execution_provider=cuda`, `scene_describer` routes into `src/b
 
 ORT GenAI is still used for Qwen-compatible image preprocessing, prompt tokenization, and token decoding.
 
-For 30-120 frame requests, the raw CUDA path uses chunked prefill (`prefill_chunk_tokens=512`) so the decoder does not prefill a very long video prompt in one giant sequence. The default model-preparation profile is `--processor-profile video`, which uses 224px frames to keep 120-frame batches inside an 8GB laptop GPU.
+For frame-batch requests, the raw CUDA path uses persistent CUDA sessions and chunked prefill (`prefill_chunk_tokens=512`) so the decoder does not prefill a long video prompt in one giant sequence. The default model-preparation profile is `--processor-profile security`, which uses a 224px wide-frame budget plus high-resolution detail crops for 30-frame 1920x1080 security summaries.
+
+Measured 8GB RTX 4070 Laptop tradeoffs:
+
+- `security`/224px plus two JPEG quality-85 detail crops, 30 JPEG quality-85 frames, analyzer prompt, 63 generated tokens: median `5162.286`-`7468.595` ms depending on laptop/WSL state.
+- 336px plus two detail crops, 30 frames, analyzer prompt, 64 generated tokens: median `7124.846` ms.
+- `video`/224px without detail crops, 60 frames, concise prompt, 24 generated tokens: median `4100.184` ms.
+- `detail`/448px wide-only, 30 frames, concise prompt, 24 generated tokens: median `16636.760` ms.
+- 336px wide-frame detail, 60 frames: failed on the 8GB GPU with ORT arena allocation pressure.
+
+Do not assume tiny objects will be reliable from the compressed whole-frame view. The working security path preserves small-object evidence by adding high-resolution detail crops. The target gate is 30 JPEG quality-85 1920x1080 frames in under 4 seconds on RTX4000-class hardware. If 448px wide-frame detail or 60+ higher-detail frames must meet that cadence, use a materially faster desktop GPU and test with more than 8GB VRAM; 16GB+ VRAM is the practical next tier. A6000 should be faster than RTX4000, and Thor-class targets should be materially faster.
 
 ## If It Fails
 

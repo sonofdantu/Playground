@@ -36,7 +36,9 @@ void PrintUsage(std::ostream& output) {
          << "  --model-dir <path>          ONNX Runtime GenAI model package directory\n"
          << "  --execution-provider <name> Execution provider hint: cpu, cuda, dml, qnn\n"
          << "  --image <path>              Add an image frame. May be repeated\n"
+         << "  --detail-image <path>       Add a high-resolution detail crop. May be repeated\n"
          << "  --timestamp-ms <n>          Timestamp for the most recent frame\n"
+         << "  --frame-note <text>         Note for the most recent image or detail crop\n"
          << "  --request-id <id>           Request identifier\n"
          << "  --history <text>            Prior summary. May be repeated\n"
          << "  --track <spec>              Track metadata: frame,id,label,x,y,w,h,confidence\n"
@@ -163,15 +165,29 @@ AnalyzerCli ParseArgs(int argc, char** argv) {
       frame.frame_id = "frame-" + std::to_string(result.request.frames.size());
       frame.timestamp_ms = static_cast<std::int64_t>(result.request.frames.size());
       result.request.frames.push_back(std::move(frame));
+    } else if (arg == "--detail-image") {
+      scene_describer::AnalyzerFrame frame;
+      frame.image_path = require_value(arg);
+      frame.frame_id = "detail-" + std::to_string(result.request.frames.size());
+      frame.detail_view = true;
+      frame.timestamp_ms = result.request.frames.empty() ? 0 : result.request.frames.back().timestamp_ms;
+      result.request.frames.push_back(std::move(frame));
     } else if (arg == "--timestamp-ms") {
       const auto value = require_value(arg);
       if (result.request.frames.empty()) {
-        result.error = "--timestamp-ms requires a preceding --image";
+        result.error = "--timestamp-ms requires a preceding --image or --detail-image";
       } else {
         std::int64_t timestamp = 0;
         if (ParseInt64(value, timestamp, result.error, arg)) {
           result.request.frames.back().timestamp_ms = timestamp;
         }
+      }
+    } else if (arg == "--frame-note") {
+      const auto value = require_value(arg);
+      if (result.request.frames.empty()) {
+        result.error = "--frame-note requires a preceding --image or --detail-image";
+      } else {
+        result.request.frames.back().note = value;
       }
     } else if (arg == "--history") {
       result.request.prior_summaries.push_back(require_value(arg));
@@ -306,7 +322,18 @@ int main(int argc, char** argv) {
   result.summary = description.value().text;
   result.latest_timestamp_ms = latest_timestamp.value();
   result.metadata = description.value().metadata;
-  result.metadata["frame_count"] = std::to_string(cli.request.frames.size());
+  std::size_t source_frame_count = 0;
+  std::size_t detail_image_count = 0;
+  for (const auto& frame : cli.request.frames) {
+    if (frame.detail_view) {
+      ++detail_image_count;
+    } else {
+      ++source_frame_count;
+    }
+  }
+  result.metadata["frame_count"] = std::to_string(source_frame_count);
+  result.metadata["detail_image_count"] = std::to_string(detail_image_count);
+  result.metadata["input_image_count"] = std::to_string(cli.request.frames.size());
   result.metadata["track_count"] = "0";
   std::size_t track_count = 0;
   for (const auto& frame : cli.request.frames) {

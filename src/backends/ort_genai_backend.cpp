@@ -162,12 +162,14 @@ class OrtGenAiSceneDescriber final : public ISceneDescriber {
       const auto input_token_count = GetInputTokenCount(*inputs);
 
       if (ShouldUseQwen35RawOrtCuda(config_, model_type)) {
-        return DescribeQwen35RawOrtCuda(config_,
-                                        *processor_,
-                                        *inputs,
-                                        model_type,
-                                        input_token_count,
-                                        requested_image_paths.size());
+        if (!qwen35_raw_cuda_runner_) {
+          qwen35_raw_cuda_runner_ = std::make_unique<Qwen35RawOrtCudaRunner>(config_);
+        }
+        return qwen35_raw_cuda_runner_->Describe(*processor_,
+                                                 *inputs,
+                                                 model_type,
+                                                 input_token_count,
+                                                 requested_image_paths.size());
       }
 
       auto params = OgaGeneratorParams::Create(*model_);
@@ -218,6 +220,7 @@ class OrtGenAiSceneDescriber final : public ISceneDescriber {
 #if SCENE_DESC_HAS_ORT_GENAI
   std::unique_ptr<OgaModel> model_;
   std::unique_ptr<OgaMultiModalProcessor> processor_;
+  std::unique_ptr<Qwen35RawOrtCudaRunner> qwen35_raw_cuda_runner_;
 #endif
 };
 

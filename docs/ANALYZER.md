@@ -49,15 +49,23 @@ Observed local Qwen3-VL output:
 }
 ```
 
-The analyzer CLI supports repeated `--image` arguments. The current CUDA path has been verified with 30, 60, and 120 frames in one request through `tools/smoke_cuda_frame_batch.sh`.
+The analyzer CLI supports repeated `--image` arguments and `--detail-image` crops. The current CUDA path has been verified with 30 generated 1920x1080 security frames plus two high-resolution detail crops through `tools/smoke_cuda_frame_batch.sh`.
 
 Linux CUDA frame-batch smoke:
 
 ```bash
-./tools/smoke_cuda_frame_batch.sh --frame-count 120 --max-new-tokens 48
+./tools/smoke_cuda_frame_batch.sh
 ```
 
-Required evidence includes `metadata.execution_provider=raw-ort-cuda`, `metadata.frame_count=120`, and `metadata.prefill_chunk_tokens=512`.
+Required evidence includes `metadata.execution_provider=raw-ort-cuda`, `metadata.frame_count=30`, `metadata.detail_image_count=2`, `metadata.image_count=32`, `metadata.track_count=14`, and `metadata.prefill_chunk_tokens=512`. The smoke also fails if the summary omits the detail-crop drone or the small held object.
+
+Resident latency gate:
+
+```bash
+./tools/benchmark_cuda_frame_batch.sh --analyzer-prompt
+```
+
+On RTX4000-class hardware, this 30-frame 1080p JPEG quality-85 security-profile benchmark is expected to report warmed median latency below 4 seconds with the detail crops enabled. On the verified RTX 4070 Laptop WSL2 development machine, use `--no-target`; observed medians range from `5162.286` to `7468.595` ms depending on laptop/WSL state.
 
 ## Track Format
 
@@ -71,6 +79,14 @@ Example:
 
 ```powershell
 --track "0,t1,vehicle,120,90,64,48,0.87"
+```
+
+`--detail-image` appends a crop as an additional model image while preserving `frame_count` as the number of source video frames:
+
+```bash
+--detail-image tmp/detail-crops/detail_0015_drone.png \
+--timestamp-ms 957 \
+--frame-note "High-resolution sky crop from source frame 15; inspect for small airborne objects such as drones."
 ```
 
 ## Current Limits

@@ -65,6 +65,10 @@ Linux CUDA smoke path:
 ```bash
 ./tools/setup_linux_cuda_env.sh
 ./tools/fetch_runtime_deps.sh --cuda
+./.venv/bin/python tools/prepare_qwen35_onnxopt_genai.py \
+  --output-dir models/qwen3.5-2b-onnxopt-q4f16 \
+  --variant q4f16 \
+  --processor-profile security
 ./tools/build.sh --clean --test --ort-genai \
   --ort-genai-root "$PWD/.deps/onnxruntime-genai-0.13.1-linux-x64-cuda/onnxruntime-genai-0.13.1-linux-x64-cuda" \
   --ort-runtime-root "$PWD/.deps/onnxruntime-linux-x64-gpu-1.25.1/onnxruntime-linux-x64-gpu-1.25.1"
@@ -72,8 +76,11 @@ Linux CUDA smoke path:
   --execution-provider cuda \
   --config configs/qwen3.5-2b-onnxopt-cuda.ini \
   --max-new-tokens 32
-./tools/smoke_cuda_frame_batch.sh --frame-count 120 --max-new-tokens 48
+./tools/smoke_cuda_frame_batch.sh
+./tools/benchmark_cuda_frame_batch.sh --analyzer-prompt
 ```
+
+The default CUDA frame-batch path uses 30 generated 1920x1080 JPEG quality-85 security frames, two high-resolution JPEG quality-85 detail crops, raw ONNX Runtime CUDA sessions, and a warmed median latency gate below 4 seconds on RTX4000-class hardware. The smoke checks for both a small held object and a drone. The verified RTX 4070 Laptop WSL2 machine is slower and currently uses `--no-target` for observation.
 
 See [docs\QUICKSTART.md](docs/QUICKSTART.md) for full Windows and Linux startup paths.
 

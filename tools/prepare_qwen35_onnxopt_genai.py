@@ -107,9 +107,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--variant", choices=sorted(VARIANTS), default="q4f16")
     parser.add_argument(
         "--processor-profile",
-        choices=["video", "image"],
-        default="video",
-        help="video uses 224px frames for 30-120 frame CUDA batches; image keeps the older 448px single-image profile.",
+        choices=["security", "video", "detail", "image"],
+        default="security",
+        help=(
+            "security uses a fixed 224px-area wide-frame budget plus high-resolution detail crops for 1080p 30-frame CUDA batches; "
+            "video uses 224px-area frames for 60-frame or longer low-detail batches; "
+            "detail uses a fixed 448px-area wide-frame budget for quality testing; "
+            "image keeps the legacy high-detail single-image profile."
+        ),
     )
     parser.add_argument("--force", action="store_true", help="Remove an existing output directory first.")
     parser.add_argument("--metadata-only", action="store_true", help="Download only small configs and ONNX graph headers.")
@@ -287,6 +292,26 @@ def write_processor_config(output_dir: Path, profile: str) -> None:
             "smart_resize": 1,
             "min_pixels": 50176,
             "max_pixels": 50176,
+            "patch_size": 16,
+            "merge_size": 2,
+        }
+    elif profile == "security":
+        resize_attrs = {
+            "width": 224,
+            "height": 224,
+            "smart_resize": 1,
+            "min_pixels": 50176,
+            "max_pixels": 50176,
+            "patch_size": 16,
+            "merge_size": 2,
+        }
+    elif profile == "detail":
+        resize_attrs = {
+            "width": 448,
+            "height": 448,
+            "smart_resize": 1,
+            "min_pixels": 200704,
+            "max_pixels": 200704,
             "patch_size": 16,
             "merge_size": 2,
         }

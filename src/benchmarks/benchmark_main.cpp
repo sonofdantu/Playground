@@ -26,7 +26,7 @@ struct BenchmarkArgs {
   bool help{false};
   bool json{false};
   std::filesystem::path config_path;
-  std::filesystem::path image_path;
+  std::vector<std::filesystem::path> image_paths;
   RuntimeConfigOverrides overrides;
   int warmups{1};
   int repeats{5};
@@ -52,7 +52,7 @@ void PrintUsage(std::ostream& output) {
          << "  --backend <mock|ort-genai>  Select backend (default: mock)\n"
          << "  --model-dir <path>          ONNX Runtime GenAI model package directory\n"
          << "  --execution-provider <name> Execution provider hint: cpu, cuda, dml, qnn\n"
-         << "  --image <path>              Image path\n"
+         << "  --image <path>              Image path; repeat for frame batches\n"
          << "  --prompt <text>             Prompt sent to the model\n"
          << "  --max-new-tokens <n>        Max generated tokens\n"
          << "  --warmups <n>               Warmup requests before measurement (default: 1)\n"
@@ -152,7 +152,10 @@ BenchmarkArgs ParseArgs(int argc, char** argv) {
     } else if (arg == "--execution-provider") {
       result.overrides.execution_provider = require_value(arg);
     } else if (arg == "--image") {
-      result.image_path = require_value(arg);
+      const auto value = require_value(arg);
+      if (result.error.empty()) {
+        result.image_paths.push_back(value);
+      }
     } else if (arg == "--prompt") {
       result.overrides.prompt = require_value(arg);
     } else if (arg == "--max-new-tokens") {
@@ -224,12 +227,16 @@ scene_describer::Result<TimedDescription> RunOnce(scene_describer::ISceneDescrib
 scene_describer::Result<scene_describer::SceneDescriptionRequest> PrepareRequest(
     const BenchmarkArgs& args, const RuntimeConfig& config) {
   scene_describer::SceneDescriptionRequest request;
-  request.image_path = args.image_path.string();
+  request.image_path = args.image_paths.front().string();
+  request.image_paths.reserve(args.image_paths.size());
+  for (const auto& image_path : args.image_paths) {
+    request.image_paths.push_back(image_path.string());
+  }
   request.prompt = config.prompt;
   request.generation = config.generation;
 
   if (config.backend == "mock") {
-    auto image = scene_describer::LoadImage(args.image_path);
+    auto image = scene_describer::LoadImage(args.image_paths.front());
     if (!image.ok()) {
       return image.status();
     }
@@ -259,6 +266,18 @@ void WriteMetadataJson(std::ostream& output, const std::map<std::string, std::st
   output << "  }";
 }
 
+void WritePathArrayJson(std::ostream& output, const std::vector<std::filesystem::path>& paths) {
+  output << "[";
+  for (size_t index = 0; index < paths.size(); ++index) {
+    output << (index == 0 ? "\n" : ",\n")
+           << "    \"" << JsonEscape(paths[index].string()) << "\"";
+  }
+  if (!paths.empty()) {
+    output << "\n  ";
+  }
+  output << "]";
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -272,7 +291,7 @@ int main(int argc, char** argv) {
     PrintUsage(std::cout);
     return 0;
   }
-  if (args.image_path.empty()) {
+  if (args.image_paths.empty()) {
     std::cerr << "error: --image is required\n\n";
     PrintUsage(std::cerr);
     return 2;
@@ -349,6 +368,10 @@ int main(int argc, char** argv) {
               << "  \"model_dir\": \"" << JsonEscape(config.model_dir) << "\",\n"
               << "  \"execution_provider\": \"" << JsonEscape(config.execution_provider) << "\",\n"
               << "  \"image\": \"" << JsonEscape(request.value().image_path) << "\",\n"
+              << "  \"image_count\": " << request.value().image_paths.size() << ",\n"
+              << "  \"images\": ";
+    WritePathArrayJson(std::cout, args.image_paths);
+    std::cout << ",\n"
               << "  \"warmups\": " << args.warmups << ",\n"
               << "  \"repeats\": " << args.repeats << ",\n"
               << "  \"model_load_ms\": " << model_load_ms << ",\n"
@@ -374,6 +397,7 @@ int main(int argc, char** argv) {
               << "}\n";
   } else {
     std::cout << "backend: " << config.backend << "\n"
+              << "image_count: " << request.value().image_paths.size() << "\n"
               << "model_load_ms: " << model_load_ms << "\n"
               << "latency_ms: min=" << latency_stats.minimum << " median=" << latency_stats.median
               << " mean=" << latency_stats.mean << " max=" << latency_stats.maximum << "\n";
